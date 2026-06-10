@@ -79,20 +79,18 @@ td { padding: 7px 6px; border-bottom: 1px solid #1e1e1e; vertical-align: top; }
   <h2>Tracked Transaction Codes</h2>
   <label style="margin-bottom:6px">Credits — money INTO primary safe</label>
   <div class="code-legend">
+    <span class="code-pill pill-green">690 · Return of Change / Refund</span>
     <span class="code-pill pill-green">730 · Personal Account Check</span>
     <span class="code-pill pill-green">750 · Wages</span>
     <span class="code-pill pill-green">760 · Gifts / Refunds / Other</span>
-    <span class="code-pill pill-green">780 · Transfer Back from Secondary Safe</span>
   </div>
   <br>
   <label style="margin-bottom:6px">Debits — money OUT of primary safe</label>
   <div class="code-legend">
     <span class="code-pill pill-red">670 · Withdrawal from Primary Safe</span>
-    <span class="code-pill pill-red">694 · Purchase from Secondary Safe</span>
     <span class="code-pill pill-red">710 · Return to Business Office</span>
-    <span class="code-pill pill-red">770 · Transfer to Secondary Safe</span>
   </div>
-  <p style="color:#555;font-size:0.75rem;margin-top:10px">All other codes (690, 695, 840–921, etc.) are ignored.</p>
+  <p style="color:#555;font-size:0.75rem;margin-top:10px">All other codes are ignored.</p>
 </div>
 
 <!-- STEP 1: UPLOAD (multiple files) -->
@@ -170,18 +168,16 @@ td { padding: 7px 6px; border-bottom: 1px solid #1e1e1e; vertical-align: top; }
 </div>
 
 <script>
-const CREDIT_CODES = new Set([730, 750, 760, 780]);
-const DEBIT_CODES  = new Set([670, 694, 710, 770]);
+const CREDIT_CODES = new Set([690, 730, 750, 760]);
+const DEBIT_CODES  = new Set([670, 710]);
 
 const CODE_DESC = {
+  690: 'Return of Change to Primary Safe / Refund',
   730: 'Cash Deposit – Personal Account Check',
   750: 'Cash Deposit – Wages',
   760: 'Cash Deposit – Gifts/Refunds/Other',
-  780: 'Cash Transfer – Back From Secondary Safe',
   670: 'Cash Withdrawal – From Primary Safe',
-  694: 'Cash Purchase – From Secondary Safe',
   710: 'Cash Withdrawal – Return to Business Office',
-  770: 'Cash Transfer – To Secondary Safe',
 };
 
 // loadedFiles: [{name, rows, tracked}]
