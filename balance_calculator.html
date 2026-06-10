@@ -209,7 +209,8 @@ document.getElementById('fileInput').addEventListener('change', function() {
 
   files.forEach((file, idx) => {
     // Reserve a slot in loadedFiles
-    loadedFiles.push({ name: file.name, rows: [], tracked: 0, idx });
+    const parsed = parseFilename(file.name);
+    loadedFiles.push({ name: file.name, rows: [], tracked: 0, idx, initials: parsed && parsed.initials, parsedAmount: parsed && parsed.amount });
 
     // Add a row to the file list table
     const tr = document.createElement('tr');
@@ -363,12 +364,19 @@ function refreshEndingBalancesTable() {
       ? f.rows.filter(r => r.date >= startDate && r.date <= endDate && (CREDIT_CODES.has(r.code) || DEBIT_CODES.has(r.code))).length
       : f.tracked;
 
+    const prefill = existingVals[f.idx] !== undefined ? existingVals[f.idx]
+                   : (f.parsedAmount != null ? f.parsedAmount : '');
+
+    const label = f.initials
+      ? escHtml(f.initials) + ' <span style="color:#666">(' + escHtml(f.name) + ')</span>'
+      : escHtml(f.name);
+
     const tr = document.createElement('tr');
     tr.dataset.idx = f.idx;
     tr.innerHTML = `
-      <td class="fname">${escHtml(f.name)}</td>
+      <td class="fname">${label}</td>
       <td><span class="tracked-count">${inRange}</span></td>
-      <td><input type="number" step="0.01" placeholder="e.g. 312.45" data-idx="${f.idx}" class="ending-bal-input" value="${existingVals[f.idx] || ''}"></td>
+      <td><input type="number" step="0.01" placeholder="e.g. 312.45" data-idx="${f.idx}" class="ending-bal-input" value="${prefill}"></td>
     `;
     tbody.appendChild(tr);
   });
@@ -520,8 +528,8 @@ function exportReport() {
       { wch: 12 }, { wch: 10 }, { wch: 36 }, { wch: 38 }, { wch: 12 }, { wch: 12 }, { wch: 16 }
     ];
 
-    // Tab name: filename without extension, max 31 chars (Excel limit)
-    let tabName = file.name.replace(/\.[^.]+$/, '').replace(/[\\/*?:[\]]/g, '-').substring(0, 31);
+    // Tab name: initials if filename matched the naming convention, else filename without extension (max 31 chars, Excel limit)
+    let tabName = (file.initials || file.name.replace(/\.[^.]+$/, '')).replace(/[\\/*?:[\]]/g, '-').substring(0, 31);
     // Avoid duplicate tab names
     let base = tabName, n = 2;
     while (wb.SheetNames.includes(tabName)) { tabName = (base.substring(0, 28) + '-' + n++); }
@@ -567,6 +575,13 @@ function fmtDate(d) {
 
 function escHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Parses "INITIALS AMOUNT.xlsx" e.g. "DD 247.31.xls" -> { initials: 'DD', amount: 247.31 }
+function parseFilename(name) {
+  const m = name.match(/^(.+?)\s+(\d+(?:\.\d{1,2})?)\.(xlsx?|xls)$/i);
+  if (!m) return null;
+  return { initials: m[1].trim(), amount: parseFloat(m[2]) };
 }
 </script>
 </body>
