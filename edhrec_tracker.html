@@ -207,21 +207,26 @@
     border: 1px solid #2a4a7a;
     border-radius: 6px;
     padding: 10px 12px;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, background 0.15s;
+    display: block;
+    text-decoration: none;
+    cursor: pointer;
   }
 
-  .card-tile:hover { border-color: #c89b3c; }
+  .card-tile:hover {
+    border-color: #c89b3c;
+    background: #1a4a8a;
+  }
 
-  .card-tile a {
+  .card-name {
     color: #e0e0e0;
-    text-decoration: none;
     font-size: 0.88rem;
     font-weight: 600;
     display: block;
     margin-bottom: 6px;
   }
 
-  .card-tile a:hover { color: #c89b3c; }
+  .card-tile:hover .card-name { color: #c89b3c; }
 
   .card-stats {
     display: flex;
@@ -507,10 +512,13 @@
           ? `https://edhrec.com${card.url}`
           : `https://edhrec.com/cards/${card.sanitized || toSlug(card.name)}`;
 
-        const tile = document.createElement('div');
+        const tile = document.createElement('a');
         tile.className = 'card-tile';
+        tile.href = cardUrl;
+        tile.target = '_blank';
+        tile.rel = 'noopener';
         tile.innerHTML = `
-          <a href="${cardUrl}" target="_blank" rel="noopener">${card.name}</a>
+          <span class="card-name">${card.name}</span>
           <div class="card-stats">
             <div class="stat">
               <span class="label">Synergy</span>
