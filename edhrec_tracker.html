@@ -157,6 +157,54 @@
     margin-top: 8px;
   }
 
+  /* ── View Toggle ── */
+  .view-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .view-toggle span {
+    font-size: 0.8rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .toggle-track {
+    position: relative;
+    width: 52px;
+    height: 26px;
+    background: #0f3460;
+    border-radius: 13px;
+    border: 1px solid #2a4a7a;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+  }
+
+  .toggle-track.active {
+    background: #1a4a8a;
+    border-color: #c89b3c;
+  }
+
+  .toggle-knob {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    background: #888;
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+  }
+
+  .toggle-track.active .toggle-knob {
+    transform: translateX(26px);
+    background: #c89b3c;
+  }
+
   /* ── Results ── */
   .results { display: flex; flex-direction: column; gap: 20px; }
 
@@ -195,39 +243,90 @@
 
   .result-header.collapsed .chevron { transform: rotate(-90deg); }
 
-  .cards-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 10px;
-    padding: 14px 16px;
+  /* ── List view ── */
+  .cards-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: #0d1a2e;
   }
 
-  .card-tile {
-    background: #0f3460;
-    border: 1px solid #2a4a7a;
-    border-radius: 6px;
-    padding: 10px 12px;
-    transition: border-color 0.15s, background 0.15s;
-    display: block;
+  .card-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 16px;
+    background: #16213e;
     text-decoration: none;
-    cursor: pointer;
+    transition: background 0.15s;
   }
 
-  .card-tile:hover {
-    border-color: #c89b3c;
-    background: #1a4a8a;
-  }
+  .card-row:hover { background: #1a2e50; }
 
-  .card-name {
+  .card-row .card-name {
+    flex: 1;
     color: #e0e0e0;
     font-size: 0.88rem;
     font-weight: 600;
-    display: block;
-    margin-bottom: 6px;
   }
 
-  .card-tile:hover .card-name { color: #c89b3c; }
+  .card-row:hover .card-name { color: #c89b3c; }
 
+  .card-row .card-stats {
+    display: flex;
+    gap: 20px;
+  }
+
+  /* ── Image tile view ── */
+  .cards-img-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .card-img-tile {
+    display: block;
+    text-decoration: none;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid transparent;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+    background: #0f3460;
+  }
+
+  .card-img-tile:hover {
+    border-color: #c89b3c;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  }
+
+  .card-img-tile img {
+    width: 100%;
+    display: block;
+    border-radius: 6px 6px 0 0;
+    background: #0a1a30;
+    min-height: 120px;
+  }
+
+  .card-img-info {
+    padding: 7px 9px;
+  }
+
+  .card-img-info .card-name {
+    color: #e0e0e0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+  }
+
+  .card-img-tile:hover .card-name { color: #c89b3c; }
+
+  /* shared stat styles */
   .card-stats {
     display: flex;
     gap: 8px;
@@ -280,34 +379,63 @@
   </div>
 
   <!-- Results -->
-  <div class="results" id="results">
-    <div id="placeholder">Add commanders and click "Fetch New Cards".</div>
+  <div>
+    <div class="view-toggle" id="view-toggle" style="display:none">
+      <span>List</span>
+      <div class="toggle-track" id="toggle-track">
+        <div class="toggle-knob"></div>
+      </div>
+      <span>Card Art</span>
+    </div>
+
+    <div class="results" id="results">
+      <div id="placeholder">Add commanders and click "Fetch New Cards".</div>
+    </div>
   </div>
 </div>
 
 <script>
   // ── State ─────────────────────────────────────────────────────────────────
   const STORAGE_KEY = 'edhrec_commanders';
+  const VIEW_KEY = 'edhrec_view';
   let commanders = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-  let selectedName = '';   // name as returned by Scryfall
+  let viewMode = localStorage.getItem(VIEW_KEY) || 'list'; // 'list' | 'art'
+  let selectedName = '';
   let acIndex = -1;
+  let lastCards = {}; // name → cardviews, so re-render doesn't re-fetch
 
-  // ── Persist ───────────────────────────────────────────────────────────────
+  // ── View toggle ───────────────────────────────────────────────────────────
+  const toggleTrack = document.getElementById('toggle-track');
+
+  function syncToggleUI() {
+    toggleTrack.classList.toggle('active', viewMode === 'art');
+  }
+
+  toggleTrack.addEventListener('click', () => {
+    viewMode = viewMode === 'list' ? 'art' : 'list';
+    localStorage.setItem(VIEW_KEY, viewMode);
+    syncToggleUI();
+    reRenderAll();
+  });
+
+  syncToggleUI();
+
+  // ── Persist commanders ────────────────────────────────────────────────────
   function save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(commanders));
   }
 
-  // ── Slugify name → EDHRec URL segment ─────────────────────────────────────
+  // ── Slugify ───────────────────────────────────────────────────────────────
   function toSlug(name) {
-    // "Atraxa, Praetors' Voice" → "atraxa-praetors-voice"
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
-      .trim()
-      .replace(/\s+/g, '-');
+    return name.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim().replace(/\s+/g, '-');
   }
 
-  // ── Render sidebar list ───────────────────────────────────────────────────
+  // ── Scryfall image URL ────────────────────────────────────────────────────
+  function scryfallImgUrl(name) {
+    return `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}&format=image&version=normal`;
+  }
+
+  // ── Render sidebar ────────────────────────────────────────────────────────
   function renderList() {
     const list = document.getElementById('commander-list');
     const fetchBtn = document.getElementById('btn-fetch');
@@ -330,6 +458,84 @@
     hint.style.display = commanders.length === 0 ? 'block' : 'none';
   }
 
+  // ── Build stat HTML ───────────────────────────────────────────────────────
+  function statHtml(card) {
+    const synergy = card.synergy != null
+      ? (card.synergy > 0 ? `+${(card.synergy * 100).toFixed(0)}%` : `${(card.synergy * 100).toFixed(0)}%`)
+      : '—';
+    const synergyClass = card.synergy > 0 ? 'pos' : card.synergy < 0 ? 'neg' : '';
+    const inclusion = card.inclusion != null ? `${card.inclusion}%` : '—';
+    return `
+      <div class="card-stats">
+        <div class="stat">
+          <span class="label">Synergy</span>
+          <span class="value ${synergyClass}">${synergy}</span>
+        </div>
+        <div class="stat">
+          <span class="label">Inclusion</span>
+          <span class="value">${inclusion}</span>
+        </div>
+      </div>`;
+  }
+
+  function cardUrl(card) {
+    return card.url
+      ? `https://edhrec.com${card.url}`
+      : `https://edhrec.com/cards/${card.sanitized || toSlug(card.name)}`;
+  }
+
+  // ── Render cards in current view mode ────────────────────────────────────
+  function renderCards(cards) {
+    if (viewMode === 'art') {
+      const grid = document.createElement('div');
+      grid.className = 'cards-img-grid';
+      cards.forEach(card => {
+        const tile = document.createElement('a');
+        tile.className = 'card-img-tile';
+        tile.href = cardUrl(card);
+        tile.target = '_blank';
+        tile.rel = 'noopener';
+        tile.innerHTML = `
+          <img src="${scryfallImgUrl(card.name)}" alt="${card.name}" loading="lazy" />
+          <div class="card-img-info">
+            <span class="card-name">${card.name}</span>
+            ${statHtml(card)}
+          </div>`;
+        grid.appendChild(tile);
+      });
+      return grid;
+    } else {
+      const list = document.createElement('div');
+      list.className = 'cards-list';
+      cards.forEach(card => {
+        const row = document.createElement('a');
+        row.className = 'card-row';
+        row.href = cardUrl(card);
+        row.target = '_blank';
+        row.rel = 'noopener';
+        row.innerHTML = `<span class="card-name">${card.name}</span>${statHtml(card)}`;
+        list.appendChild(row);
+      });
+      return list;
+    }
+  }
+
+  // ── Re-render results with new view mode (no refetch) ────────────────────
+  function reRenderAll() {
+    const results = document.getElementById('results');
+    results.querySelectorAll('.result-block').forEach(block => {
+      const name = block.dataset.commander;
+      const cards = lastCards[name];
+      if (!cards) return;
+      const existing = block.querySelector('.cards-list, .cards-img-grid');
+      if (!existing) return;
+      const wasCollapsed = block.querySelector('.result-header')?.classList.contains('collapsed');
+      const newEl = renderCards(cards);
+      if (wasCollapsed) newEl.style.display = 'none';
+      block.replaceChild(newEl, existing);
+    });
+  }
+
   // ── Autocomplete ──────────────────────────────────────────────────────────
   const input = document.getElementById('commander-input');
   const acList = document.getElementById('autocomplete-list');
@@ -339,16 +545,13 @@
     const q = input.value.trim();
     selectedName = '';
     document.getElementById('btn-add').disabled = true;
-
     clearTimeout(acTimer);
     if (q.length < 2) { acList.style.display = 'none'; return; }
-
     acTimer = setTimeout(() => fetchAC(q), 200);
   });
 
   async function fetchAC(q) {
     try {
-      // Scryfall autocomplete — returns up to 20 card names
       const res = await fetch(
         `https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(q)}&include_extras=false`
       );
@@ -363,18 +566,13 @@
     acList.innerHTML = '';
     acIndex = -1;
     if (names.length === 0) { acList.style.display = 'none'; return; }
-
     names.forEach(name => {
       const item = document.createElement('div');
       item.className = 'ac-item';
       item.textContent = name;
-      item.addEventListener('mousedown', e => {
-        e.preventDefault();
-        selectAC(name);
-      });
+      item.addEventListener('mousedown', e => { e.preventDefault(); selectAC(name); });
       acList.appendChild(item);
     });
-
     acList.style.display = 'block';
   }
 
@@ -385,7 +583,6 @@
     document.getElementById('btn-add').disabled = false;
   }
 
-  // Keyboard nav in autocomplete
   input.addEventListener('keydown', e => {
     const items = acList.querySelectorAll('.ac-item');
     if (e.key === 'ArrowDown') {
@@ -398,17 +595,13 @@
       items.forEach((el, i) => el.classList.toggle('active', i === acIndex));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (acIndex >= 0 && items[acIndex]) {
-        selectAC(items[acIndex].textContent);
-      } else if (selectedName) {
-        addCommander();
-      }
+      if (acIndex >= 0 && items[acIndex]) selectAC(items[acIndex].textContent);
+      else if (selectedName) addCommander();
     } else if (e.key === 'Escape') {
       acList.style.display = 'none';
     }
   });
 
-  // Also enable Add if user types an exact match without clicking
   input.addEventListener('change', () => {
     if (input.value.trim()) {
       selectedName = input.value.trim();
@@ -422,7 +615,7 @@
 
   // ── Add commander ─────────────────────────────────────────────────────────
   function addCommander() {
-    const name = (selectedName || input.value.trim());
+    const name = selectedName || input.value.trim();
     if (!name || commanders.includes(name)) return;
     commanders.push(name);
     save();
@@ -435,13 +628,14 @@
 
   document.getElementById('btn-add').addEventListener('click', addCommander);
 
-  // ── Fetch EDHRec new cards ────────────────────────────────────────────────
+  // ── Fetch all ─────────────────────────────────────────────────────────────
   document.getElementById('btn-fetch').addEventListener('click', fetchAll);
 
   async function fetchAll() {
     const results = document.getElementById('results');
     results.innerHTML = '';
-    document.getElementById('placeholder').remove?.();
+    lastCards = {};
+    document.getElementById('view-toggle').style.display = 'flex';
 
     for (const name of commanders) {
       const block = createBlock(name);
@@ -453,18 +647,18 @@
   function createBlock(name) {
     const block = document.createElement('div');
     block.className = 'result-block';
+    block.dataset.commander = name;
     block.innerHTML = `
-      <div class="result-header" data-name="${name}">
+      <div class="result-header">
         <h3>${name}</h3>
         <span class="meta">Loading…</span>
         <span class="chevron">▾</span>
       </div>
-      <div class="status-msg">Fetching from EDHRec…</div>
-    `;
+      <div class="status-msg">Fetching from EDHRec…</div>`;
 
     block.querySelector('.result-header').addEventListener('click', () => {
       const header = block.querySelector('.result-header');
-      const body = block.querySelector('.cards-grid, .status-msg');
+      const body = block.querySelector('.cards-list, .cards-img-grid, .status-msg');
       if (!body) return;
       const collapsed = header.classList.toggle('collapsed');
       body.style.display = collapsed ? 'none' : '';
@@ -474,14 +668,12 @@
   }
 
   async function fetchCommander(name, block) {
-    const header = block.querySelector('.result-header .meta');
+    const metaEl = block.querySelector('.result-header .meta');
     const body = block.querySelector('.status-msg');
 
     try {
       const slug = toSlug(name);
-      const url = `https://json.edhrec.com/pages/commanders/${slug}.json`;
-      const res = await fetch(url);
-
+      const res = await fetch(`https://json.edhrec.com/pages/commanders/${slug}.json`);
       if (!res.ok) throw new Error(`EDHRec returned ${res.status}`);
 
       const data = await res.json();
@@ -492,53 +684,20 @@
 
       if (!newSection || !newSection.cardviews?.length) {
         body.textContent = 'No "New Cards" section found for this commander.';
-        header.textContent = 'No new cards';
+        metaEl.textContent = 'No new cards';
         return;
       }
 
       const cards = newSection.cardviews;
-      header.textContent = `${cards.length} new card${cards.length !== 1 ? 's' : ''}`;
+      lastCards[name] = cards;
+      metaEl.textContent = `${cards.length} new card${cards.length !== 1 ? 's' : ''}`;
 
-      const grid = document.createElement('div');
-      grid.className = 'cards-grid';
-
-      cards.forEach(card => {
-        const synergy = card.synergy != null
-          ? (card.synergy > 0 ? `+${(card.synergy * 100).toFixed(0)}%` : `${(card.synergy * 100).toFixed(0)}%`)
-          : '—';
-        const synergyClass = card.synergy > 0 ? 'pos' : card.synergy < 0 ? 'neg' : '';
-        const inclusion = card.inclusion != null ? `${card.inclusion}%` : '—';
-        const cardUrl = card.url
-          ? `https://edhrec.com${card.url}`
-          : `https://edhrec.com/cards/${card.sanitized || toSlug(card.name)}`;
-
-        const tile = document.createElement('a');
-        tile.className = 'card-tile';
-        tile.href = cardUrl;
-        tile.target = '_blank';
-        tile.rel = 'noopener';
-        tile.innerHTML = `
-          <span class="card-name">${card.name}</span>
-          <div class="card-stats">
-            <div class="stat">
-              <span class="label">Synergy</span>
-              <span class="value ${synergyClass}">${synergy}</span>
-            </div>
-            <div class="stat">
-              <span class="label">Inclusion</span>
-              <span class="value">${inclusion}</span>
-            </div>
-          </div>
-        `;
-        grid.appendChild(tile);
-      });
-
-      block.replaceChild(grid, body);
+      block.replaceChild(renderCards(cards), body);
 
     } catch (err) {
       body.classList.add('error');
       body.textContent = `Error: ${err.message}`;
-      header.textContent = 'Failed';
+      metaEl.textContent = 'Failed';
     }
   }
 
