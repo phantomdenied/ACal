@@ -8,221 +8,705 @@
 <title>Acumatica Balance Calculator</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #0d0d0d; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; min-height: 100vh; padding: 24px 16px; max-width: 780px; margin: 0 auto; }
-h1 { color: #00e676; font-size: 1.3rem; margin-bottom: 4px; letter-spacing: 1px; }
-.subtitle { color: #888; font-size: 0.8rem; margin-bottom: 24px; }
-.card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
-.card h2 { font-size: 0.85rem; color: #00e676; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
-label { display: block; font-size: 0.8rem; color: #aaa; margin-bottom: 5px; }
-input[type="file"] { width: 100%; background: #111; border: 1px dashed #333; border-radius: 6px; padding: 12px; color: #ccc; font-size: 0.85rem; cursor: pointer; }
-input[type="number"], input[type="date"], select { width: 100%; background: #111; border: 1px solid #333; border-radius: 6px; padding: 10px 12px; color: #fff; font-size: 0.95rem; margin-bottom: 12px; }
-input[type="number"]:focus, input[type="date"]:focus, select:focus { outline: none; border-color: #00e676; }
-.row2 { display: flex; gap: 12px; }
-.row2 > div { flex: 1; }
-.btn { width: 100%; font-weight: 700; border: none; border-radius: 6px; padding: 13px; font-size: 1rem; cursor: pointer; }
-.btn-green { background: #00e676; color: #000; }
-.btn-green:hover { background: #00c45e; }
-.btn-blue { background: #2255cc; color: #fff; }
-.btn-blue:hover { background: #1a44aa; }
-.status { margin-top: 10px; padding: 10px 14px; border-radius: 6px; font-size: 0.82rem; display: none; }
-.status.show { display: block; }
-.status.ok   { background: #0d1f14; border: 1px solid #00e676; color: #00e676; }
-.status.err  { background: #2a1010; border: 1px solid #ff5252; color: #ff7070; }
-.status.info { background: #1a1a2a; border: 1px solid #5588ff; color: #88aaff; }
-.result { display: none; }
-.result.show { display: block; }
-.balance-box { text-align: center; padding: 20px; background: #0d1f14; border: 1px solid #00e676; border-radius: 10px; margin-bottom: 14px; }
-.balance-label { font-size: 0.8rem; color: #888; margin-bottom: 6px; }
-.balance-amount { font-size: 2.2rem; font-weight: 700; color: #00e676; }
-.balance-date { font-size: 0.8rem; color: #aaa; margin-top: 4px; }
-.summary-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #222; font-size: 0.85rem; }
-.summary-row:last-child { border-bottom: none; }
-.green { color: #00e676; }
-.red   { color: #ff5252; }
-.gray  { color: #888; }
-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
-th { background: #222; color: #00e676; padding: 8px 6px; text-align: left; position: sticky; top: 0; }
-td { padding: 7px 6px; border-bottom: 1px solid #1e1e1e; vertical-align: top; }
-.code-badge { background: #1a2a1a; color: #00e676; border-radius: 4px; padding: 1px 6px; font-weight: 600; }
-.toggle-btn { background: none; border: 1px solid #333; color: #888; font-size: 0.75rem; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-weight: 400; }
-.toggle-btn:hover { border-color: #00e676; color: #00e676; }
-.tx-table-wrap { display: none; margin-top: 12px; max-height: 300px; overflow-y: auto; }
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root {
+  /* Surfaces */
+  --bg:            #0a0b0d;
+  --surface:       #16181c;
+  --surface-2:     #1d2024;
+  --surface-hover: #24282d;
+  --border:        #272b30;
+  --border-strong: #34393f;
+
+  /* Text */
+  --text-primary:   #edeef0;
+  --text-secondary: #9aa0a8;
+  --text-muted:     #6a7078;
+  --text-on-accent: #052e18;
+
+  /* Brand / accent (success green) */
+  --accent:          #10b981;
+  --accent-hover:    #0e9e70;
+  --accent-active:   #0c8961;
+  --accent-soft-bg:     rgba(16,185,129,.10);
+  --accent-soft-border: rgba(16,185,129,.38);
+
+  /* Semantic */
+  --danger:             #f0554f;
+  --danger-hover:       #d9433e;
+  --danger-soft-bg:     rgba(240,85,79,.10);
+  --danger-soft-border: rgba(240,85,79,.38);
+
+  --warning:             #eab308;
+  --warning-soft-bg:     rgba(234,179,8,.10);
+  --warning-soft-border: rgba(234,179,8,.38);
+
+  --info:             #4d8dff;
+  --info-soft-bg:     rgba(77,141,255,.10);
+  --info-soft-border: rgba(77,141,255,.38);
+
+  /* Typography */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --text-xs:   0.72rem;
+  --text-sm:   0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md:   1rem;
+  --text-lg:   1.125rem;
+  --text-xl:   1.375rem;
+
+  /* Spacing scale */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.35);
+  --shadow-md: 0 8px 24px rgba(0,0,0,.35);
+
+  /* Motion */
+  --ease: cubic-bezier(.4,0,.2,1);
+  --t-fast: 120ms;
+  --t-base: 180ms;
+}
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+* { box-sizing: border-box; }
+* , *::before, *::after { margin: 0; padding: 0; }
+html { color-scheme: dark; }
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+img, svg { display: block; max-width: 100%; }
+button, input, select { font: inherit; color: inherit; }
+a { color: var(--accent); }
+
+.container {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 0 var(--space-4) var(--space-10);
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+:focus:not(:focus-visible) { outline: none; }
+
+/* ============================================================
+   TOP BAR
+   ============================================================ */
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-4);
+  background: rgba(10,11,13,.92);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(6px);
+}
+.topbar-icon {
+  width: 30px; height: 30px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft-bg);
+  border: 1px solid var(--accent-soft-border);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+}
+.topbar-titles { min-width: 0; flex: 1; }
+.topbar h1 {
+  font-size: var(--text-md);
+  font-weight: 700;
+  letter-spacing: .2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.topbar .subtitle {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.beta-badge {
+  flex: none;
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--warning-soft-bg);
+  color: var(--warning);
+  border: 1px solid var(--warning-soft-border);
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: .3px;
+  white-space: nowrap;
+}
+.beta-badge::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--warning); flex: none;
+}
+
+.page-lede {
+  padding: var(--space-6) 0 var(--space-2);
+}
+.page-lede p {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  max-width: 60ch;
+}
+
+/* ============================================================
+   CARDS & STEP HEADERS
+   ============================================================ */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+.card > *:not(:last-child) { margin-bottom: var(--space-3); }
+
+.step-head {
+  display: flex; align-items: center; gap: var(--space-3);
+  margin-bottom: var(--space-4) !important;
+}
+.step-num {
+  flex: none;
+  min-width: 26px; height: 26px; padding: 0 6px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft-bg);
+  color: var(--accent);
+  border: 1px solid var(--accent-soft-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.step-head h2, .card > h2 {
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.card-hint {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+.card-hint + .card-hint { margin-top: calc(-1 * var(--space-2)); }
+.card-foot-note {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+}
+
+/* ============================================================
+   FORM CONTROLS
+   ============================================================ */
+.field { margin-bottom: var(--space-4); }
+.field:last-child { margin-bottom: 0; }
+.field label, > label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
+.row2 { display: flex; gap: var(--space-3); }
+.row2 > div { flex: 1; min-width: 0; }
+
+input[type="number"], input[type="date"], select {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 10px var(--space-3);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  min-height: 42px;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+input[type="number"]::placeholder { color: var(--text-muted); }
+input[type="number"]:hover, input[type="date"]:hover, select:hover { border-color: #454b52; }
+input[type="number"]:focus, input[type="date"]:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft-bg);
+}
+input.input-invalid {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 3px var(--danger-soft-bg) !important;
+}
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5.5 8l4.5 4.5L14.5 8' stroke='%239aa0a8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+select:disabled { opacity: .55; cursor: not-allowed; }
+input[type="date"] { color-scheme: dark; }
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%;
+  font-weight: 600;
+  font-size: var(--text-base);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 12px 18px;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+              transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--accent); color: var(--text-on-accent); }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:active { background: var(--accent-active); }
+.btn-secondary {
+  background: transparent; color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.btn-secondary:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft-bg); }
+
+.toggle-btn {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.remove-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.remove-btn:hover { border-color: var(--danger-soft-border); background: var(--danger-soft-bg); color: var(--danger); }
+
+.clear-all-btn {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  margin-top: var(--space-3);
+  transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.clear-all-btn:hover { border-color: var(--danger-soft-border); color: var(--danger); }
+
+/* ============================================================
+   DROPZONE
+   ============================================================ */
+.dropzone {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-6) var(--space-4);
+  cursor: pointer;
+  transition: border-color var(--t-base) var(--ease), background var(--t-base) var(--ease);
+}
+.dropzone:hover { border-color: var(--accent-soft-border); background: var(--surface-2); }
+.dropzone.drag-over { border-color: var(--accent); background: var(--accent-soft-bg); }
+.dropzone-icon { color: var(--text-muted); width: 28px; height: 28px; }
+.dropzone.drag-over .dropzone-icon, .dropzone:hover .dropzone-icon { color: var(--accent); }
+.dropzone-text { font-size: var(--text-base); color: var(--text-primary); }
+.dropzone-text strong { color: var(--accent); font-weight: 600; }
+.dropzone-hint { font-size: var(--text-xs); color: var(--text-muted); }
+
+/* ============================================================
+   ALERTS / STATUS
+   ============================================================ */
+.status {
+  display: none;
+  align-items: flex-start; gap: 9px;
+  margin-top: var(--space-3);
+  padding: 11px 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  border: 1px solid transparent;
+  animation: alert-in var(--t-base) var(--ease);
+}
+.status.show { display: flex; }
+.status .alert-icon { flex: none; width: 16px; height: 16px; margin-top: 2px; }
+.status.ok   { background: var(--accent-soft-bg);  border-color: var(--accent-soft-border);  color: var(--accent); }
+.status.err  { background: var(--danger-soft-bg);  border-color: var(--danger-soft-border);  color: #ff8a85; }
+.status.warn { background: var(--warning-soft-bg); border-color: var(--warning-soft-border); color: #f5cb52; }
+.status.info { background: var(--info-soft-bg);    border-color: var(--info-soft-border);    color: #8db1ff; }
+@keyframes alert-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   EMPTY STATES
+   ============================================================ */
+.empty-state {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+/* ============================================================
+   BADGES / PILLS / MISC LABELS
+   ============================================================ */
+.code-legend { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.code-pill {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+}
+.pill-green { background: var(--accent-soft-bg);  color: var(--accent);  border-color: var(--accent-soft-border); }
+.pill-red   { background: var(--danger-soft-bg);  color: #ff8a85;        border-color: var(--danger-soft-border); }
+
+.code-badge {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+  font-weight: 600;
+  font-size: var(--text-xs);
+}
+.tracked-count { color: var(--accent); font-weight: 700; }
+
+.file-status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; flex: none; }
+.dot-ok   { background: var(--accent); }
+.dot-err  { background: var(--danger); }
+.dot-warn { background: var(--warning); }
+.dot-spin { background: var(--info); animation: spin-dot 1s linear infinite; }
+@keyframes spin-dot { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+
+.fname { color: var(--text-primary); word-break: break-all; }
+.green { color: var(--accent); }
+.red   { color: #ff8a85; }
+.gray  { color: var(--text-muted); }
+
+.hidden { display: none !important; }
+
+/* ============================================================
+   TABLES
+   ============================================================ */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-3);
+}
+table.data-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.data-table th {
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  padding: 9px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tbody tr { transition: background var(--t-fast) var(--ease); }
+.data-table tbody tr:hover { background: var(--surface-2); }
+.data-table input[type="number"] { margin: 0; padding: 7px 10px; font-size: var(--text-sm); min-height: 36px; }
+
+.tx-table-wrap {
+  display: none;
+  margin-top: var(--space-3);
+  max-height: 320px;
+  overflow-y: auto; overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
 .tx-table-wrap.show { display: block; }
-.no-tx { color: #888; font-size: 0.82rem; padding: 10px 0; }
-.code-legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.code-pill { font-size: 0.72rem; padding: 2px 8px; border-radius: 12px; }
-.pill-green { background: #0d2a1a; color: #00e676; border: 1px solid #00e676; }
-.pill-red   { background: #2a1010; color: #ff7070; border: 1px solid #ff5252; }
+.tx-table-wrap table.data-table th { position: sticky; top: 0; }
+.no-tx { color: var(--text-muted); font-size: var(--text-sm); padding: var(--space-3); }
 
-/* File list table */
-.file-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-.file-table th { background: #222; color: #00e676; padding: 8px 10px; font-size: 0.75rem; text-align: left; font-weight: 600; }
-.file-table td { padding: 8px 10px; border-bottom: 1px solid #222; font-size: 0.8rem; vertical-align: middle; }
-.file-table tr:last-child td { border-bottom: none; }
-.file-table input[type="number"] { margin-bottom: 0; padding: 6px 8px; font-size: 0.85rem; }
-.file-status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-.dot-ok  { background: #00e676; }
-.dot-err { background: #ff5252; }
-.dot-warn { background: #ffb300; }
-.dot-spin { background: #5588ff; animation: spin-dot 1s linear infinite; }
-@keyframes spin-dot { 0%{opacity:1} 50%{opacity:.2} 100%{opacity:1} }
-.fname { color: #ccc; word-break: break-all; }
-.tracked-count { color: #00e676; font-weight: 600; }
-.hidden { display: none; }
+/* ============================================================
+   RESULT CARD
+   ============================================================ */
+.result { display: none; }
+.result.show { display: block; animation: alert-in var(--t-base) var(--ease); }
+.balance-box {
+  text-align: center;
+  padding: var(--space-5);
+  background: var(--accent-soft-bg);
+  border: 1px solid var(--accent-soft-border);
+  border-radius: var(--radius-md);
+}
+.balance-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: .5px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  margin-bottom: var(--space-2);
+}
+.balance-amount { font-size: 2.25rem; font-weight: 700; color: var(--accent); letter-spacing: -.5px; }
+.balance-date { font-size: var(--text-sm); color: var(--text-secondary); margin-top: var(--space-1); }
 
-/* Test/beta build chrome */
-.beta-badge { display: inline-block; background: #2a1a00; color: #ffb300; border: 1px solid #ffb300; border-radius: 4px; padding: 2px 8px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.5px; margin-left: 8px; vertical-align: middle; }
-.version-footer { text-align: center; color: #555; font-size: 0.72rem; margin: 24px 0 8px; }
+.summary-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+.summary-row:last-child { border-bottom: none; font-weight: 700; font-size: var(--text-base); }
+.summary-row span:first-child { color: var(--text-secondary); }
+.summary-row:last-child span:first-child { color: var(--text-primary); }
 
-/* Scrollable table wrappers (mobile) */
-.scroll-x { overflow-x: auto; }
+/* ============================================================
+   FOOTER
+   ============================================================ */
+.version-footer {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  margin: var(--space-6) 0 var(--space-2);
+}
 
-/* File row remove button / clear-all */
-.remove-btn { background: none; border: 1px solid #442222; color: #ff7070; font-size: 0.7rem; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
-.remove-btn:hover { border-color: #ff5252; background: #2a1010; }
-.clear-all-btn { background: none; border: 1px solid #333; color: #888; font-size: 0.75rem; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-top: 10px; }
-.clear-all-btn:hover { border-color: #ff5252; color: #ff7070; }
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 480px) {
+  .container { padding: 0 var(--space-3) var(--space-8); }
+  .card { padding: var(--space-4); }
+  .balance-amount { font-size: 1.9rem; }
+  .row2 { flex-direction: column; gap: 0; }
+  .topbar { padding: var(--space-3); }
+}
 
-.status.warn { background: #2a2200; border: 1px solid #ffb300; color: #ffcc55; }
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
 </style>
 </head>
 <body>
 
-<h1>ACUMATICA BALANCE CALCULATOR <span class="beta-badge">TEST / BETA — NOT PRODUCTION</span></h1>
-<p class="subtitle">Upload one or more account history files · Estimate past balances · Export audit report</p>
+<header class="topbar">
+  <span class="topbar-icon" aria-hidden="true">
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="14" height="14" rx="2.5" stroke="currentColor" stroke-width="1.6"/><path d="M6.5 8.5h7M6.5 11.5h4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+  </span>
+  <div class="topbar-titles">
+    <h1>Acumatica Balance Calculator</h1>
+    <p class="subtitle">Estimate past balances &middot; export audit reports</p>
+  </div>
+  <span class="beta-badge">TEST BUILD</span>
+</header>
 
-<!-- TRACKED CODES LEGEND -->
-<div class="card">
-  <h2>Tracked Transaction Codes</h2>
-  <label style="margin-bottom:6px">Credits — money INTO primary safe</label>
-  <div class="code-legend">
-    <span class="code-pill pill-green">690 · Return of Change / Refund</span>
-    <span class="code-pill pill-green">730 · Personal Account Check</span>
-    <span class="code-pill pill-green">750 · Wages</span>
-    <span class="code-pill pill-green">760 · Gifts / Refunds / Other</span>
-  </div>
-  <br>
-  <label style="margin-bottom:6px">Debits — money OUT of primary safe</label>
-  <div class="code-legend">
-    <span class="code-pill pill-red">670 · Withdrawal from Primary Safe</span>
-    <span class="code-pill pill-red">710 · Return to Business Office</span>
-  </div>
-  <p style="color:#555;font-size:0.75rem;margin-top:10px">All other codes are ignored. Amounts are read as positive magnitudes — direction (deposit vs. withdrawal) is inferred entirely from the code above, not from a +/− sign in the file.</p>
-  <p style="color:#555;font-size:0.75rem;margin-top:8px">Name files "INITIALS AMOUNT.xlsx" (e.g. "SW 237.76.xlsx") to auto-fill that account's current balance in Step 2 and enable Batch Mode (Step 2B) without typing anything in.</p>
+<div class="container">
+
+<div class="page-lede">
+  <p>Upload account history exports, estimate what any account's cash balance was on a past date, and generate a reconciled running-balance audit report.</p>
 </div>
 
+<!-- TRACKED CODES LEGEND -->
+<section class="card">
+  <h2>Tracked Transaction Codes</h2>
+  <div>
+    <span class="card-hint" style="display:block;margin-bottom:6px">Credits &mdash; money INTO primary safe</span>
+    <div class="code-legend">
+      <span class="code-pill pill-green">690 &middot; Return of Change / Refund</span>
+      <span class="code-pill pill-green">730 &middot; Personal Account Check</span>
+      <span class="code-pill pill-green">750 &middot; Wages</span>
+      <span class="code-pill pill-green">760 &middot; Gifts / Refunds / Other</span>
+    </div>
+  </div>
+  <div>
+    <span class="card-hint" style="display:block;margin-bottom:6px">Debits &mdash; money OUT of primary safe</span>
+    <div class="code-legend">
+      <span class="code-pill pill-red">670 &middot; Withdrawal from Primary Safe</span>
+      <span class="code-pill pill-red">710 &middot; Return to Business Office</span>
+    </div>
+  </div>
+  <p class="card-foot-note">All other codes are ignored. Amounts are read as positive magnitudes &mdash; direction (deposit vs. withdrawal) is inferred entirely from the code above, not from a +/&minus; sign in the file.</p>
+  <p class="card-foot-note">Name files "INITIALS AMOUNT.xlsx" (e.g. "SW 237.76.xlsx") to auto-fill that account's current balance in Step 2 and enable Batch Mode (Step 2B) without typing anything in.</p>
+</section>
+
 <!-- STEP 1: UPLOAD (multiple files) -->
-<div class="card">
-  <h2>1. Upload Account History Files</h2>
-  <label for="fileInput">Select one or more .xlsx exports from Acumatica — each file = one account tab in the report</label>
-  <input type="file" id="fileInput" accept=".xlsx,.xls" multiple>
-  <div id="fileListWrap" class="hidden" style="margin-top:14px">
-    <div class="scroll-x">
-      <table class="file-table">
-        <thead><tr><th>File</th><th>Status</th><th>Tracked Txns</th><th></th></tr></thead>
+<section class="card">
+  <div class="step-head"><span class="step-num" aria-hidden="true">1</span><h2>Upload Account History Files</h2></div>
+
+  <label class="dropzone" for="fileInput" id="dropzone">
+    <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15V4M12 4l-4 4M12 4l4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="dropzone-text"><strong>Click to browse</strong> or drag .xlsx files here</div>
+    <div class="dropzone-hint">One or more Acumatica exports &middot; each file becomes one account</div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" multiple class="sr-only">
+  </label>
+
+  <div id="fileListWrap" class="hidden">
+    <div class="table-wrap">
+      <table class="data-table">
+        <caption class="sr-only">Uploaded account files and their parse status</caption>
+        <thead><tr><th scope="col">File</th><th scope="col">Status</th><th scope="col">Tracked Txns</th><th scope="col" class="sr-only">Actions</th></tr></thead>
         <tbody id="fileListBody"></tbody>
       </table>
     </div>
-    <button class="clear-all-btn" onclick="clearAllFiles()">Clear All Files</button>
+    <button type="button" class="clear-all-btn" onclick="clearAllFiles()">Clear All Files</button>
   </div>
-</div>
+</section>
 
 <!-- STEP 2: BALANCE CALCULATOR (single account) -->
-<div class="card">
-  <h2>2. Estimate Balance on a Past Date (Single Account)</h2>
-  <label for="calcFileSelect">Select account</label>
-  <select id="calcFileSelect">
-    <option value="">— upload files first —</option>
-  </select>
-  <label for="currentBalance">Current cash balance for that account (right now)</label>
-  <input type="number" id="currentBalance" placeholder="e.g. 312.45" step="0.01">
-  <div id="balanceAutoNote" class="status info" style="margin-top:-6px;margin-bottom:12px"></div>
-  <label for="targetDate">Target date — what date do you want to know the balance for?</label>
-  <input type="date" id="targetDate">
-  <button class="btn btn-green" onclick="calculate()">Calculate Balance</button>
-  <div id="calcStatus" class="status"></div>
-</div>
+<section class="card">
+  <div class="step-head"><span class="step-num" aria-hidden="true">2</span><h2>Estimate Balance on a Past Date (Single Account)</h2></div>
+
+  <div class="field">
+    <label for="calcFileSelect">Select account</label>
+    <select id="calcFileSelect">
+      <option value="">&mdash; upload files first &mdash;</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="currentBalance">Current cash balance for that account (right now)</label>
+    <input type="number" id="currentBalance" placeholder="e.g. 312.45" step="0.01">
+    <div id="balanceAutoNote" class="status info" role="status" aria-live="polite"></div>
+  </div>
+
+  <div class="field">
+    <label for="targetDate">Target date &mdash; what date do you want to know the balance for?</label>
+    <input type="date" id="targetDate">
+  </div>
+
+  <button type="button" class="btn btn-primary" onclick="calculate()">Calculate Balance</button>
+  <div id="calcStatus" class="status" role="status" aria-live="polite"></div>
+</section>
 
 <!-- RESULT -->
-<div class="card result" id="resultCard">
+<section class="card result" id="resultCard">
   <h2>Result</h2>
   <div class="balance-box">
-    <div class="balance-label">ESTIMATED CASH BALANCE ON</div>
+    <div class="balance-label">Estimated Cash Balance On</div>
     <div class="balance-amount" id="resultAmount">$0.00</div>
     <div class="balance-date" id="resultDate"></div>
   </div>
   <div class="summary-row"><span>Current balance (today)</span><span class="green" id="sumCurrent"></span></div>
   <div class="summary-row"><span>Deposits after target date (removed)</span><span class="red" id="sumIn"></span></div>
   <div class="summary-row"><span>Withdrawals after target date (added back)</span><span class="green" id="sumOut"></span></div>
-  <div class="summary-row" style="font-weight:700"><span>Estimated balance on target date</span><span class="green" id="sumResult"></span></div>
-  <br>
-  <button class="toggle-btn" onclick="document.getElementById('txTable').classList.toggle('show')">Show / Hide Transactions Used</button>
-  <div class="tx-table-wrap scroll-x" id="txTable"></div>
-</div>
+  <div class="summary-row"><span>Estimated balance on target date</span><span class="green" id="sumResult"></span></div>
+  <button type="button" class="toggle-btn" id="txToggleBtn" aria-expanded="false" aria-controls="txTable" onclick="toggleTxTable()" style="margin-top:var(--space-4)">Show / Hide Transactions Used</button>
+  <div class="tx-table-wrap" id="txTable"></div>
+</section>
 
 <!-- STEP 2B: BATCH TARGET DATE MODE (ALL ACCOUNTS) -->
-<div class="card">
-  <h2>2B. Batch Mode — All Accounts on One Target Date</h2>
-  <p style="color:#888;font-size:0.8rem;margin-bottom:14px">Current balance is auto-filled from each "INITIALS AMOUNT.xlsx" filename where possible — edit any value below before calculating. Every account then rolls back to the target date at once.</p>
+<section class="card">
+  <div class="step-head"><span class="step-num" aria-hidden="true">2B</span><h2>Batch Mode &mdash; All Accounts on One Target Date</h2></div>
+  <p class="card-hint">Current balance is auto-filled from each "INITIALS AMOUNT.xlsx" filename where possible &mdash; edit any value below before calculating. Every account then rolls back to the target date at once.</p>
 
-  <div id="batchBalancesWrap" class="hidden" style="margin-bottom:14px">
-    <label style="margin-bottom:8px">Current balance for each account (right now)</label>
-    <div class="scroll-x">
-      <table class="file-table">
-        <thead><tr><th>Account File</th><th>Current Balance</th></tr></thead>
+  <div id="batchBalancesWrap" class="hidden">
+    <label style="display:block;margin-bottom:var(--space-2)">Current balance for each account (right now)</label>
+    <div class="table-wrap">
+      <table class="data-table">
+        <caption class="sr-only">Editable current balance per account for batch calculation</caption>
+        <thead><tr><th scope="col">Account File</th><th scope="col">Current Balance</th></tr></thead>
         <tbody id="batchBalancesBody"></tbody>
       </table>
     </div>
   </div>
-  <div id="batchBalancesEmpty" style="color:#555;font-size:0.8rem;margin-bottom:14px">Upload files first to enter current balances.</div>
+  <div id="batchBalancesEmpty" class="empty-state">Upload files first to enter current balances.</div>
 
-  <label for="batchTargetDate">Target date — what date do you want balances for?</label>
-  <input type="date" id="batchTargetDate">
-  <button class="btn btn-green" onclick="calculateBatch()">Calculate All Accounts</button>
-  <div id="batchStatus" class="status"></div>
-  <div id="batchResultWrap" class="hidden" style="margin-top:16px">
-    <div class="scroll-x">
-      <table class="file-table">
-        <thead><tr><th>Account</th><th>Current Balance</th><th>Balance on Target Date</th></tr></thead>
+  <div class="field" style="margin-top:var(--space-4)">
+    <label for="batchTargetDate">Target date &mdash; what date do you want balances for?</label>
+    <input type="date" id="batchTargetDate">
+  </div>
+  <button type="button" class="btn btn-primary" onclick="calculateBatch()">Calculate All Accounts</button>
+  <div id="batchStatus" class="status" role="status" aria-live="polite"></div>
+
+  <div id="batchResultWrap" class="hidden">
+    <div class="table-wrap">
+      <table class="data-table">
+        <caption class="sr-only">Batch calculation results</caption>
+        <thead><tr><th scope="col">Account</th><th scope="col">Current Balance</th><th scope="col">Balance on Target Date</th></tr></thead>
         <tbody id="batchResultBody"></tbody>
       </table>
     </div>
   </div>
-</div>
+</section>
 
 <!-- STEP 3: MULTI-ACCOUNT AUDIT EXPORT -->
-<div class="card">
-  <h2>3. Export Running Balance Report</h2>
-  <p style="color:#888;font-size:0.8rem;margin-bottom:14px">Each uploaded file gets its own tab in one Excel workbook. Enter the known ending balance for each account below.</p>
+<section class="card">
+  <div class="step-head"><span class="step-num" aria-hidden="true">3</span><h2>Export Running Balance Report</h2></div>
+  <p class="card-hint">Each uploaded file gets its own tab in one Excel workbook. Enter the known ending balance for each account below.</p>
 
   <div class="row2">
-    <div>
+    <div class="field">
       <label for="reportStart">Report start date</label>
       <input type="date" id="reportStart">
     </div>
-    <div>
+    <div class="field">
       <label for="reportEnd">Report end date</label>
       <input type="date" id="reportEnd">
     </div>
   </div>
 
-  <div id="endingBalancesWrap" class="hidden" style="margin-bottom:14px">
-    <label style="margin-bottom:8px">Ending balance for each account, as of the report end date above — enter the balance you actually know for that date (not today's balance, unless the end date is today)</label>
-    <div class="scroll-x">
-      <table class="file-table">
-        <thead><tr><th>Account File</th><th>Tracked Txns in Range</th><th>Ending Balance</th></tr></thead>
+  <div id="endingBalancesWrap" class="hidden">
+    <label style="display:block;margin-bottom:var(--space-2)">Ending balance for each account, as of the report end date above &mdash; enter the balance you actually know for that date (not today's balance, unless the end date is today)</label>
+    <div class="table-wrap">
+      <table class="data-table">
+        <caption class="sr-only">Editable ending balance per account for the export</caption>
+        <thead><tr><th scope="col">Account File</th><th scope="col">Tracked Txns in Range</th><th scope="col">Ending Balance</th></tr></thead>
         <tbody id="endingBalancesBody"></tbody>
       </table>
     </div>
   </div>
-  <div id="endingBalancesEmpty" style="color:#555;font-size:0.8rem;margin-bottom:14px">Upload files first to enter ending balances.</div>
+  <div id="endingBalancesEmpty" class="empty-state">Upload files first to enter ending balances.</div>
 
-  <button class="btn btn-blue" onclick="exportReport()">Download Excel Report</button>
-  <div id="exportStatus" class="status"></div>
-</div>
+  <button type="button" class="btn btn-primary" onclick="exportReport()" style="margin-top:var(--space-4)">Download Excel Report</button>
+  <div id="exportStatus" class="status" role="status" aria-live="polite"></div>
+</section>
 
-<p class="version-footer">index2.html · v0.1.0 (TEST build) · not the production page</p>
+<p class="version-footer">index2.html &middot; v0.2.0 (TEST build) &middot; not the production page</p>
+
+</div><!-- /.container -->
 
 <script>
 const CREDIT_CODES = new Set([690, 730, 750, 760]);
@@ -237,6 +721,13 @@ const CODE_DESC = {
   710: 'Cash Withdrawal – Return to Business Office',
 };
 
+const STATUS_ICONS = {
+  ok:   '<svg class="alert-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8.25" stroke="currentColor" stroke-width="1.4"/><path d="M6.2 10.2l2.6 2.6L14 7.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  err:  '<svg class="alert-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8.25" stroke="currentColor" stroke-width="1.4"/><path d="M7.3 7.3l5.4 5.4M12.7 7.3l-5.4 5.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  warn: '<svg class="alert-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.7l8.2 14.6a1 1 0 0 1-.87 1.5H2.67a1 1 0 0 1-.87-1.5L10 2.7z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 8.2v3.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="10" cy="14.6" r="0.95" fill="currentColor"/></svg>',
+  info: '<svg class="alert-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8.25" stroke="currentColor" stroke-width="1.4"/><path d="M10 9.2v4.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="10" cy="6.4" r="0.95" fill="currentColor"/></svg>',
+};
+
 // loadedFiles: [{name, rows, tracked, idx, initials, parsedAmount, removed, fallbackFields}]
 let loadedFiles = [];
 let pendingCount = 0;
@@ -246,18 +737,26 @@ let uploadGen = 0;
 
 function setStatus(id, msg, type) {
   const el = document.getElementById(id);
-  el.textContent = msg;
+  el.innerHTML = (STATUS_ICONS[type] || '') + '<span>' + escHtml(msg) + '</span>';
   el.className = 'status show ' + type;
 }
 function hideStatus(id) { document.getElementById(id).className = 'status'; }
+
+function markInvalid(id) { const el = document.getElementById(id); if (el) el.classList.add('input-invalid'); }
+function clearInvalid(id) { const el = document.getElementById(id); if (el) el.classList.remove('input-invalid'); }
+// Clear a field's invalid state as soon as the user edits it.
+['currentBalance', 'targetDate', 'calcFileSelect', 'batchTargetDate', 'reportStart', 'reportEnd'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', () => clearInvalid(id));
+});
 
 // Files that parsed successfully and haven't been removed by the user.
 function activeFiles() {
   return loadedFiles.filter(f => f.rows.length > 0 && !f.removed);
 }
 
-document.getElementById('fileInput').addEventListener('change', function() {
-  const files = Array.from(this.files);
+function handleFiles(fileListLike) {
+  const files = Array.from(fileListLike);
   if (!files.length) return;
 
   uploadGen++;
@@ -292,12 +791,39 @@ document.getElementById('fileInput').addEventListener('change', function() {
       <td class="fname">${escHtml(file.name)}</td>
       <td><span class="file-status-dot dot-spin" id="fdot-${idx}"></span><span id="fmsg-${idx}">Reading...</span></td>
       <td id="fcount-${idx}">—</td>
-      <td><button class="remove-btn" onclick="removeFile(${idx})">Remove</button></td>
+      <td><button type="button" class="remove-btn" onclick="removeFile(${idx})">Remove</button></td>
     `;
     tbody.appendChild(tr);
 
     parseFile(file, idx, myGen);
   });
+}
+
+document.getElementById('fileInput').addEventListener('change', function() {
+  handleFiles(this.files);
+});
+
+// Drag-and-drop support on the dropzone — feeds the same handleFiles() path
+// as the native file picker, so upload behavior is identical either way.
+const dropzoneEl = document.getElementById('dropzone');
+let dragDepth = 0;
+dropzoneEl.addEventListener('dragenter', (e) => {
+  e.preventDefault();
+  dragDepth++;
+  dropzoneEl.classList.add('drag-over');
+});
+dropzoneEl.addEventListener('dragover', (e) => { e.preventDefault(); });
+dropzoneEl.addEventListener('dragleave', () => {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) dropzoneEl.classList.remove('drag-over');
+});
+dropzoneEl.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dragDepth = 0;
+  dropzoneEl.classList.remove('drag-over');
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+    handleFiles(e.dataTransfer.files);
+  }
 });
 
 // Also update ending balances table when dates change
@@ -494,11 +1020,9 @@ function autoFillCurrentBalance() {
   const file = loadedFiles[selIdx];
   if (file.parsedAmount != null) {
     document.getElementById('currentBalance').value = file.parsedAmount;
-    note.textContent = 'Auto-filled ' + fmt(file.parsedAmount) + ' from filename "' + file.name + '".';
-    note.className = 'status show info';
+    setStatus('balanceAutoNote', 'Auto-filled ' + fmt(file.parsedAmount) + ' from filename "' + file.name + '".', 'info');
   } else {
-    note.textContent = 'Filename doesn\'t include a balance — enter it manually.';
-    note.className = 'status show info';
+    setStatus('balanceAutoNote', 'Filename doesn\'t include a balance — enter it manually.', 'info');
   }
 }
 
@@ -535,7 +1059,7 @@ function refreshEndingBalancesTable() {
     const prefill = existingVals[f.idx] !== undefined ? existingVals[f.idx] : '';
 
     const label = f.initials
-      ? escHtml(f.initials) + ' <span style="color:#666">(' + escHtml(f.name) + ')</span>'
+      ? escHtml(f.initials) + ' <span class="gray">(' + escHtml(f.name) + ')</span>'
       : escHtml(f.name);
 
     const tr = document.createElement('tr');
@@ -577,7 +1101,7 @@ function refreshBatchBalancesTable() {
                    : (f.parsedAmount != null ? f.parsedAmount : '');
 
     const label = f.initials
-      ? escHtml(f.initials) + ' <span style="color:#666">(' + escHtml(f.name) + ')</span>'
+      ? escHtml(f.initials) + ' <span class="gray">(' + escHtml(f.name) + ')</span>'
       : escHtml(f.name);
 
     const tr = document.createElement('tr');
@@ -593,21 +1117,29 @@ function refreshBatchBalancesTable() {
   document.getElementById('batchBalancesEmpty').style.display = 'none';
 }
 
+function toggleTxTable() {
+  const wrap = document.getElementById('txTable');
+  const btn = document.getElementById('txToggleBtn');
+  const nowShown = wrap.classList.toggle('show');
+  btn.setAttribute('aria-expanded', String(nowShown));
+}
+
 function calculate() {
   hideStatus('calcStatus');
+  clearInvalid('calcFileSelect'); clearInvalid('currentBalance'); clearInvalid('targetDate');
 
   const selIdx = parseInt(document.getElementById('calcFileSelect').value);
-  if (isNaN(selIdx)) { setStatus('calcStatus', 'Select an account file.', 'err'); return; }
+  if (isNaN(selIdx)) { setStatus('calcStatus', 'Select an account file.', 'err'); markInvalid('calcFileSelect'); return; }
   const file = loadedFiles[selIdx];
-  if (!file || file.rows.length === 0) { setStatus('calcStatus', 'Selected file has no valid data.', 'err'); return; }
+  if (!file || file.rows.length === 0) { setStatus('calcStatus', 'Selected file has no valid data.', 'err'); markInvalid('calcFileSelect'); return; }
 
   const balInput = document.getElementById('currentBalance').value.trim();
-  if (!balInput) { setStatus('calcStatus', 'Enter the current cash balance.', 'err'); return; }
+  if (!balInput) { setStatus('calcStatus', 'Enter the current cash balance.', 'err'); markInvalid('currentBalance'); return; }
   const currentBalance = parseFloat(balInput);
-  if (isNaN(currentBalance)) { setStatus('calcStatus', 'Balance must be a number.', 'err'); return; }
+  if (isNaN(currentBalance)) { setStatus('calcStatus', 'Balance must be a number.', 'err'); markInvalid('currentBalance'); return; }
 
   const targetDate = document.getElementById('targetDate').value;
-  if (!targetDate) { setStatus('calcStatus', 'Select a target date.', 'err'); return; }
+  if (!targetDate) { setStatus('calcStatus', 'Select a target date.', 'err'); markInvalid('targetDate'); return; }
 
   const afterRows = file.rows.filter(r =>
     r.date > targetDate && (CREDIT_CODES.has(r.code) || DEBIT_CODES.has(r.code))
@@ -622,7 +1154,7 @@ function calculate() {
   const estimated = currentBalance - depositsAfter + withdrawalsAfter;
 
   document.getElementById('resultAmount').textContent = fmt(estimated);
-  document.getElementById('resultDate').textContent   = 'As of ' + fmtDate(targetDate) + ' — ' + escHtml(file.name);
+  document.getElementById('resultDate').textContent   = 'As of ' + fmtDate(targetDate) + ' — ' + file.name;
   document.getElementById('sumCurrent').textContent   = fmt(currentBalance);
   document.getElementById('sumIn').textContent        = '- ' + fmt(depositsAfter);
   document.getElementById('sumOut').textContent       = '+ ' + fmt(withdrawalsAfter);
@@ -631,7 +1163,7 @@ function calculate() {
   if (afterRows.length === 0) {
     document.getElementById('txTable').innerHTML = '<p class="no-tx">No tracked transactions found after ' + fmtDate(targetDate) + '.</p>';
   } else {
-    let html = '<table><thead><tr><th>Date</th><th>Code</th><th>Description</th><th>Amount</th><th>Effect</th></tr></thead><tbody>';
+    let html = '<table class="data-table"><thead><tr><th scope="col">Date</th><th scope="col">Code</th><th scope="col">Description</th><th scope="col">Amount</th><th scope="col">Effect</th></tr></thead><tbody>';
     afterRows.slice().sort((a, b) => b.date.localeCompare(a.date)).forEach(r => {
       const isCredit = CREDIT_CODES.has(r.code);
       html += '<tr>' +
@@ -653,14 +1185,15 @@ function calculate() {
 
   const rc = document.getElementById('resultCard');
   rc.classList.add('show');
-  rc.scrollIntoView({ behavior: 'smooth' });
+  rc.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function calculateBatch() {
   hideStatus('batchStatus');
+  clearInvalid('batchTargetDate');
 
   const targetDate = document.getElementById('batchTargetDate').value;
-  if (!targetDate) { setStatus('batchStatus', 'Select a target date.', 'err'); return; }
+  if (!targetDate) { setStatus('batchStatus', 'Select a target date.', 'err'); markInvalid('batchTargetDate'); return; }
 
   const inputs = document.querySelectorAll('.batch-bal-input');
   if (inputs.length === 0) { setStatus('batchStatus', 'Upload files first.', 'err'); return; }
@@ -677,7 +1210,7 @@ function calculateBatch() {
     if (!f) return;
 
     const label = f.initials
-      ? escHtml(f.initials) + ' <span style="color:#666">(' + escHtml(f.name) + ')</span>'
+      ? escHtml(f.initials) + ' <span class="gray">(' + escHtml(f.name) + ')</span>'
       : escHtml(f.name);
     const tr = document.createElement('tr');
 
@@ -723,11 +1256,12 @@ function calculateBatch() {
 
 function exportReport() {
   hideStatus('exportStatus');
+  clearInvalid('reportStart'); clearInvalid('reportEnd');
   try {
     const startDate = document.getElementById('reportStart').value;
     const endDate   = document.getElementById('reportEnd').value;
-    if (!startDate || !endDate) { setStatus('exportStatus', 'Select both a start and end date.', 'err'); return; }
-    if (startDate > endDate)    { setStatus('exportStatus', 'Start date must be before end date.', 'err'); return; }
+    if (!startDate || !endDate) { setStatus('exportStatus', 'Select both a start and end date.', 'err'); if (!startDate) markInvalid('reportStart'); if (!endDate) markInvalid('reportEnd'); return; }
+    if (startDate > endDate)    { setStatus('exportStatus', 'Start date must be before end date.', 'err'); markInvalid('reportStart'); markInvalid('reportEnd'); return; }
 
     // Collect ending balances from the dynamic inputs
     const inputs = document.querySelectorAll('.ending-bal-input');
