@@ -332,7 +332,18 @@ function parseFile(file, idx, gen) {
 
       // Scan every column actually present in the sheet (not just a fixed
       // A–M window) so headers further right than column M are still found.
-      const range = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s: { c: 0 }, e: { c: 25 } };
+      // Real-world files sometimes carry a malformed or missing !ref (seen
+      // in testing against actual Acumatica exports, which decode_range can
+      // turn into a negative column index) — fall back to a generous fixed
+      // window (A–Z) rather than letting that reach encode_col() and throw.
+      let range = null;
+      if (ws['!ref']) {
+        try { range = XLSX.utils.decode_range(ws['!ref']); } catch (e) { range = null; }
+      }
+      const rangeIsSane = range &&
+        Number.isInteger(range.s && range.s.c) && Number.isInteger(range.e && range.e.c) &&
+        range.s.c >= 0 && range.e.c >= range.s.c;
+      if (!rangeIsSane) range = { s: { c: 0 }, e: { c: 25 } };
       const colLetters = [];
       for (let c = range.s.c; c <= range.e.c; c++) colLetters.push(XLSX.utils.encode_col(c));
 
