@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Estimate past Acumatica primary-safe cash balances from account history exports, and build a running-balance audit report.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%AE%3C/text%3E%3C/svg%3E">
+<title>Acumatica Balance Calculator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0d0d0d; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; min-height: 100vh; padding: 24px 16px; max-width: 780px; margin: 0 auto; }
+h1 { color: #00e676; font-size: 1.3rem; margin-bottom: 4px; letter-spacing: 1px; }
+.subtitle { color: #888; font-size: 0.8rem; margin-bottom: 24px; }
+.card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+.card h2 { font-size: 0.85rem; color: #00e676; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+label { display: block; font-size: 0.8rem; color: #aaa; margin-bottom: 5px; }
+input[type="file"] { width: 100%; background: #111; border: 1px dashed #333; border-radius: 6px; padding: 12px; color: #ccc; font-size: 0.85rem; cursor: pointer; }
+input[type="number"], input[type="date"], select { width: 100%; background: #111; border: 1px solid #333; border-radius: 6px; padding: 10px 12px; color: #fff; font-size: 0.95rem; margin-bottom: 12px; }
+input[type="number"]:focus, input[type="date"]:focus, select:focus { outline: none; border-color: #00e676; }
+.row2 { display: flex; gap: 12px; }
+.row2 > div { flex: 1; }
+.btn { width: 100%; font-weight: 700; border: none; border-radius: 6px; padding: 13px; font-size: 1rem; cursor: pointer; }
+.btn-green { background: #00e676; color: #000; }
+.btn-green:hover { background: #00c45e; }
+.btn-blue { background: #2255cc; color: #fff; }
+.btn-blue:hover { background: #1a44aa; }
+.status { margin-top: 10px; padding: 10px 14px; border-radius: 6px; font-size: 0.82rem; display: none; }
+.status.show { display: block; }
+.status.ok   { background: #0d1f14; border: 1px solid #00e676; color: #00e676; }
+.status.err  { background: #2a1010; border: 1px solid #ff5252; color: #ff7070; }
+.status.info { background: #1a1a2a; border: 1px solid #5588ff; color: #88aaff; }
+.result { display: none; }
+.result.show { display: block; }
+.balance-box { text-align: center; padding: 20px; background: #0d1f14; border: 1px solid #00e676; border-radius: 10px; margin-bottom: 14px; }
+.balance-label { font-size: 0.8rem; color: #888; margin-bottom: 6px; }
+.balance-amount { font-size: 2.2rem; font-weight: 700; color: #00e676; }
+.balance-date { font-size: 0.8rem; color: #aaa; margin-top: 4px; }
+.summary-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #222; font-size: 0.85rem; }
+.summary-row:last-child { border-bottom: none; }
+.green { color: #00e676; }
+.red   { color: #ff5252; }
+.gray  { color: #888; }
+table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+th { background: #222; color: #00e676; padding: 8px 6px; text-align: left; position: sticky; top: 0; }
+td { padding: 7px 6px; border-bottom: 1px solid #1e1e1e; vertical-align: top; }
+.code-badge { background: #1a2a1a; color: #00e676; border-radius: 4px; padding: 1px 6px; font-weight: 600; }
+.toggle-btn { background: none; border: 1px solid #333; color: #888; font-size: 0.75rem; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-weight: 400; }
+.toggle-btn:hover { border-color: #00e676; color: #00e676; }
+.tx-table-wrap { display: none; margin-top: 12px; max-height: 300px; overflow-y: auto; }
+.tx-table-wrap.show { display: block; }
+.no-tx { color: #888; font-size: 0.82rem; padding: 10px 0; }
+.code-legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.code-pill { font-size: 0.72rem; padding: 2px 8px; border-radius: 12px; }
+.pill-green { background: #0d2a1a; color: #00e676; border: 1px solid #00e676; }
+.pill-red   { background: #2a1010; color: #ff7070; border: 1px solid #ff5252; }
+
+/* File list table */
+.file-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.file-table th { background: #222; color: #00e676; padding: 8px 10px; font-size: 0.75rem; text-align: left; font-weight: 600; }
+.file-table td { padding: 8px 10px; border-bottom: 1px solid #222; font-size: 0.8rem; vertical-align: middle; }
+.file-table tr:last-child td { border-bottom: none; }
+.file-table input[type="number"] { margin-bottom: 0; padding: 6px 8px; font-size: 0.85rem; }
+.file-status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.dot-ok  { background: #00e676; }
+.dot-err { background: #ff5252; }
+.dot-warn { background: #ffb300; }
+.dot-spin { background: #5588ff; animation: spin-dot 1s linear infinite; }
+@keyframes spin-dot { 0%{opacity:1} 50%{opacity:.2} 100%{opacity:1} }
+.fname { color: #ccc; word-break: break-all; }
+.tracked-count { color: #00e676; font-weight: 600; }
+.hidden { display: none; }
+
+/* Test/beta build chrome */
+.beta-badge { display: inline-block; background: #2a1a00; color: #ffb300; border: 1px solid #ffb300; border-radius: 4px; padding: 2px 8px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.5px; margin-left: 8px; vertical-align: middle; }
+.version-footer { text-align: center; color: #555; font-size: 0.72rem; margin: 24px 0 8px; }
+
+/* Scrollable table wrappers (mobile) */
+.scroll-x { overflow-x: auto; }
+
+/* File row remove button / clear-all */
+.remove-btn { background: none; border: 1px solid #442222; color: #ff7070; font-size: 0.7rem; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
+.remove-btn:hover { border-color: #ff5252; background: #2a1010; }
+.clear-all-btn { background: none; border: 1px solid #333; color: #888; font-size: 0.75rem; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-top: 10px; }
+.clear-all-btn:hover { border-color: #ff5252; color: #ff7070; }
+
+.status.warn { background: #2a2200; border: 1px solid #ffb300; color: #ffcc55; }
+</style>
+</head>
+<body>
+
+<h1>ACUMATICA BALANCE CALCULATOR <span class="beta-badge">TEST / BETA — NOT PRODUCTION</span></h1>
+<p class="subtitle">Upload one or more account history files · Estimate past balances · Export audit report</p>
+
+<!-- TRACKED CODES LEGEND -->
+<div class="card">
+  <h2>Tracked Transaction Codes</h2>
+  <label style="margin-bottom:6px">Credits — money INTO primary safe</label>
+  <div class="code-legend">
+    <span class="code-pill pill-green">690 · Return of Change / Refund</span>
+    <span class="code-pill pill-green">730 · Personal Account Check</span>
+    <span class="code-pill pill-green">750 · Wages</span>
+    <span class="code-pill pill-green">760 · Gifts / Refunds / Other</span>
+  </div>
+  <br>
+  <label style="margin-bottom:6px">Debits — money OUT of primary safe</label>
+  <div class="code-legend">
+    <span class="code-pill pill-red">670 · Withdrawal from Primary Safe</span>
+    <span class="code-pill pill-red">710 · Return to Business Office</span>
+  </div>
+  <p style="color:#555;font-size:0.75rem;margin-top:10px">All other codes are ignored. Amounts are read as positive magnitudes — direction (deposit vs. withdrawal) is inferred entirely from the code above, not from a +/− sign in the file.</p>
+  <p style="color:#555;font-size:0.75rem;margin-top:8px">Name files "INITIALS AMOUNT.xlsx" (e.g. "SW 237.76.xlsx") to auto-fill that account's current balance in Step 2 and enable Batch Mode (Step 2B) without typing anything in.</p>
+</div>
+
+<!-- STEP 1: UPLOAD (multiple files) -->
+<div class="card">
+  <h2>1. Upload Account History Files</h2>
+  <label for="fileInput">Select one or more .xlsx exports from Acumatica — each file = one account tab in the report</label>
+  <input type="file" id="fileInput" accept=".xlsx,.xls" multiple>
+  <div id="fileListWrap" class="hidden" style="margin-top:14px">
+    <div class="scroll-x">
+      <table class="file-table">
+        <thead><tr><th>File</th><th>Status</th><th>Tracked Txns</th><th></th></tr></thead>
+        <tbody id="fileListBody"></tbody>
+      </table>
+    </div>
+    <button class="clear-all-btn" onclick="clearAllFiles()">Clear All Files</button>
+  </div>
+</div>
+
+<!-- STEP 2: BALANCE CALCULATOR (single account) -->
+<div class="card">
+  <h2>2. Estimate Balance on a Past Date (Single Account)</h2>
+  <label for="calcFileSelect">Select account</label>
+  <select id="calcFileSelect">
+    <option value="">— upload files first —</option>
+  </select>
+  <label for="currentBalance">Current cash balance for that account (right now)</label>
+  <input type="number" id="currentBalance" placeholder="e.g. 312.45" step="0.01">
+  <div id="balanceAutoNote" class="status info" style="margin-top:-6px;margin-bottom:12px"></div>
+  <label for="targetDate">Target date — what date do you want to know the balance for?</label>
+  <input type="date" id="targetDate">
+  <button class="btn btn-green" onclick="calculate()">Calculate Balance</button>
+  <div id="calcStatus" class="status"></div>
+</div>
+
+<!-- RESULT -->
+<div class="card result" id="resultCard">
+  <h2>Result</h2>
+  <div class="balance-box">
+    <div class="balance-label">ESTIMATED CASH BALANCE ON</div>
+    <div class="balance-amount" id="resultAmount">$0.00</div>
+    <div class="balance-date" id="resultDate"></div>
+  </div>
+  <div class="summary-row"><span>Current balance (today)</span><span class="green" id="sumCurrent"></span></div>
+  <div class="summary-row"><span>Deposits after target date (removed)</span><span class="red" id="sumIn"></span></div>
+  <div class="summary-row"><span>Withdrawals after target date (added back)</span><span class="green" id="sumOut"></span></div>
+  <div class="summary-row" style="font-weight:700"><span>Estimated balance on target date</span><span class="green" id="sumResult"></span></div>
+  <br>
+  <button class="toggle-btn" onclick="document.getElementById('txTable').classList.toggle('show')">Show / Hide Transactions Used</button>
+  <div class="tx-table-wrap scroll-x" id="txTable"></div>
+</div>
+
+<!-- STEP 2B: BATCH TARGET DATE MODE (ALL ACCOUNTS) -->
+<div class="card">
+  <h2>2B. Batch Mode — All Accounts on One Target Date</h2>
+  <p style="color:#888;font-size:0.8rem;margin-bottom:14px">Current balance is auto-filled from each "INITIALS AMOUNT.xlsx" filename where possible — edit any value below before calculating. Every account then rolls back to the target date at once.</p>
+
+  <div id="batchBalancesWrap" class="hidden" style="margin-bottom:14px">
+    <label style="margin-bottom:8px">Current balance for each account (right now)</label>
+    <div class="scroll-x">
+      <table class="file-table">
+        <thead><tr><th>Account File</th><th>Current Balance</th></tr></thead>
+        <tbody id="batchBalancesBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="batchBalancesEmpty" style="color:#555;font-size:0.8rem;margin-bottom:14px">Upload files first to enter current balances.</div>
+
+  <label for="batchTargetDate">Target date — what date do you want balances for?</label>
+  <input type="date" id="batchTargetDate">
+  <button class="btn btn-green" onclick="calculateBatch()">Calculate All Accounts</button>
+  <div id="batchStatus" class="status"></div>
+  <div id="batchResultWrap" class="hidden" style="margin-top:16px">
+    <div class="scroll-x">
+      <table class="file-table">
+        <thead><tr><th>Account</th><th>Current Balance</th><th>Balance on Target Date</th></tr></thead>
+        <tbody id="batchResultBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 3: MULTI-ACCOUNT AUDIT EXPORT -->
+<div class="card">
+  <h2>3. Export Running Balance Report</h2>
+  <p style="color:#888;font-size:0.8rem;margin-bottom:14px">Each uploaded file gets its own tab in one Excel workbook. Enter the known ending balance for each account below.</p>
+
+  <div class="row2">
+    <div>
+      <label for="reportStart">Report start date</label>
+      <input type="date" id="reportStart">
+    </div>
+    <div>
+      <label for="reportEnd">Report end date</label>
+      <input type="date" id="reportEnd">
+    </div>
+  </div>
+
+  <div id="endingBalancesWrap" class="hidden" style="margin-bottom:14px">
+    <label style="margin-bottom:8px">Ending balance for each account, as of the report end date above — enter the balance you actually know for that date (not today's balance, unless the end date is today)</label>
+    <div class="scroll-x">
+      <table class="file-table">
+        <thead><tr><th>Account File</th><th>Tracked Txns in Range</th><th>Ending Balance</th></tr></thead>
+        <tbody id="endingBalancesBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="endingBalancesEmpty" style="color:#555;font-size:0.8rem;margin-bottom:14px">Upload files first to enter ending balances.</div>
+
+  <button class="btn btn-blue" onclick="exportReport()">Download Excel Report</button>
+  <div id="exportStatus" class="status"></div>
+</div>
+
+<p class="version-footer">index2.html · v0.1.0 (TEST build) · not the production page</p>
+
+<script>
+const CREDIT_CODES = new Set([690, 730, 750, 760]);
+const DEBIT_CODES  = new Set([670, 710]);
+
+const CODE_DESC = {
+  690: 'Return of Change to Primary Safe / Refund',
+  730: 'Cash Deposit – Personal Account Check',
+  750: 'Cash Deposit – Wages',
+  760: 'Cash Deposit – Gifts/Refunds/Other',
+  670: 'Cash Withdrawal – From Primary Safe',
+  710: 'Cash Withdrawal – Return to Business Office',
+};
+
+// loadedFiles: [{name, rows, tracked, idx, initials, parsedAmount, removed, fallbackFields}]
+let loadedFiles = [];
+let pendingCount = 0;
+// Bumped on every new file selection so stale FileReader callbacks from a
+// previous (replaced) upload batch can detect they're obsolete and no-op.
+let uploadGen = 0;
+
+function setStatus(id, msg, type) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status show ' + type;
+}
+function hideStatus(id) { document.getElementById(id).className = 'status'; }
+
+// Files that parsed successfully and haven't been removed by the user.
+function activeFiles() {
+  return loadedFiles.filter(f => f.rows.length > 0 && !f.removed);
+}
+
+document.getElementById('fileInput').addEventListener('change', function() {
+  const files = Array.from(this.files);
+  if (!files.length) return;
+
+  uploadGen++;
+  const myGen = uploadGen;
+
+  loadedFiles = [];
+  pendingCount = files.length;
+
+  // Reset UI
+  const tbody = document.getElementById('fileListBody');
+  tbody.innerHTML = '';
+  document.getElementById('fileListWrap').classList.remove('hidden');
+  document.getElementById('calcFileSelect').innerHTML = '<option value="">— loading... —</option>';
+  document.getElementById('endingBalancesBody').innerHTML = '';
+  document.getElementById('endingBalancesWrap').classList.add('hidden');
+  document.getElementById('endingBalancesEmpty').style.display = 'block';
+  document.getElementById('batchBalancesBody').innerHTML = '';
+  document.getElementById('batchBalancesWrap').classList.add('hidden');
+  document.getElementById('batchBalancesEmpty').style.display = 'block';
+  document.getElementById('batchResultWrap').classList.add('hidden');
+  document.getElementById('resultCard').classList.remove('show');
+
+  files.forEach((file, idx) => {
+    // Reserve a slot in loadedFiles
+    const parsed = parseFilename(file.name);
+    loadedFiles.push({ name: file.name, rows: [], tracked: 0, idx, removed: false, fallbackFields: [], initials: parsed && parsed.initials, parsedAmount: parsed && parsed.amount });
+
+    // Add a row to the file list table
+    const tr = document.createElement('tr');
+    tr.id = 'frow-' + idx;
+    tr.innerHTML = `
+      <td class="fname">${escHtml(file.name)}</td>
+      <td><span class="file-status-dot dot-spin" id="fdot-${idx}"></span><span id="fmsg-${idx}">Reading...</span></td>
+      <td id="fcount-${idx}">—</td>
+      <td><button class="remove-btn" onclick="removeFile(${idx})">Remove</button></td>
+    `;
+    tbody.appendChild(tr);
+
+    parseFile(file, idx, myGen);
+  });
+});
+
+// Also update ending balances table when dates change
+['reportStart', 'reportEnd'].forEach(id => {
+  document.getElementById(id).addEventListener('change', refreshEndingBalancesTable);
+});
+
+function parseFile(file, idx, gen) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    if (gen !== uploadGen) return; // a newer upload batch replaced this one — ignore
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+
+      let maxRow = 0;
+      Object.keys(ws).forEach(key => {
+        if (key.startsWith('!')) return;
+        const m = key.match(/(\d+)$/);
+        if (m) maxRow = Math.max(maxRow, parseInt(m[1]));
+      });
+
+      if (maxRow < 2) {
+        markFileError(idx, 'No data rows found');
+        return;
+      }
+
+      function cellVal(col, row) {
+        const c = ws[col.toLowerCase() + row] || ws[col.toUpperCase() + row];
+        return c ? c.v : null;
+      }
+
+      // Scan every column actually present in the sheet (not just a fixed
+      // A–M window) so headers further right than column M are still found.
+      const range = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s: { c: 0 }, e: { c: 25 } };
+      const colLetters = [];
+      for (let c = range.s.c; c <= range.e.c; c++) colLetters.push(XLSX.utils.encode_col(c));
+
+      const headers = {};
+      colLetters.forEach(col => {
+        const v = cellVal(col, 1);
+        if (v != null) headers[String(v).toLowerCase().trim()] = col;
+      });
+
+      // Track which required columns weren't found by header name, so we can
+      // warn the user their file used a guessed column position instead of
+      // silently trusting a possibly-wrong guess.
+      const fallbackFields = [];
+      const tranKey = Object.keys(headers).find(h => h.includes('transaction'));
+      const amtKey  = Object.keys(headers).find(h => h.includes('amount'));
+      const descKey = Object.keys(headers).find(h => h === 'description');
+
+      const dateCol = headers['date'] || (fallbackFields.push('Date'), 'a');
+      const codeCol = headers['code'] || (fallbackFields.push('Code'), 'b');
+      const tranCol = tranKey ? headers[tranKey] : 'c';
+      const amtCol  = amtKey ? headers[amtKey] : (fallbackFields.push('Amount'), 'd');
+      const descCol = descKey ? headers[descKey] : 'e';
+
+      const rows = [];
+      for (let r = 2; r <= maxRow; r++) {
+        const rawDate = cellVal(dateCol, r);
+        const rawCode = cellVal(codeCol, r);
+        const rawAmt  = cellVal(amtCol, r);
+        const rawDesc = cellVal(descCol, r) || cellVal(tranCol, r) || '';
+
+        if (rawDate == null || rawCode == null || rawAmt == null) continue;
+        const code   = parseInt(String(rawCode).trim());
+        const amount = parseFloat(rawAmt);
+        if (isNaN(code) || isNaN(amount) || amount === 0) continue;
+
+        let dateStr;
+        if (typeof rawDate === 'number') {
+          dateStr = excelSerialToDateStr(rawDate);
+        } else {
+          const d = new Date(rawDate);
+          if (isNaN(d.getTime())) continue;
+          dateStr = d.getUTCFullYear() + '-' +
+                    String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+                    String(d.getUTCDate()).padStart(2, '0');
+        }
+        rows.push({ date: dateStr, code, amount, desc: String(rawDesc) });
+      }
+
+      if (rows.length === 0) {
+        markFileError(idx, 'No valid transactions found');
+        return;
+      }
+
+      const tracked = rows.filter(r => CREDIT_CODES.has(r.code) || DEBIT_CODES.has(r.code)).length;
+      loadedFiles[idx].rows = rows;
+      loadedFiles[idx].tracked = tracked;
+      loadedFiles[idx].fallbackFields = fallbackFields;
+
+      const hasFallback = fallbackFields.length > 0;
+      document.getElementById('fdot-' + idx).className = 'file-status-dot ' + (hasFallback ? 'dot-warn' : 'dot-ok');
+      document.getElementById('fmsg-' + idx).textContent = rows.length + ' rows loaded' +
+        (hasFallback ? ' ⚠ guessed column for: ' + fallbackFields.join(', ') : '');
+      document.getElementById('fcount-' + idx).innerHTML = '<span class="tracked-count">' + tracked + '</span>';
+
+    } catch(err) {
+      markFileError(idx, 'Error: ' + err.message);
+    }
+    fileLoadDone(gen);
+  };
+  reader.onerror = () => {
+    if (gen !== uploadGen) return;
+    markFileError(idx, 'Could not read file');
+    fileLoadDone(gen);
+  };
+  reader.readAsBinaryString(file);
+}
+
+function markFileError(idx, msg) {
+  const dot = document.getElementById('fdot-' + idx);
+  if (dot) dot.className = 'file-status-dot dot-err';
+  const fmsg = document.getElementById('fmsg-' + idx);
+  if (fmsg) fmsg.textContent = msg;
+  const fcount = document.getElementById('fcount-' + idx);
+  if (fcount) fcount.textContent = '0';
+  loadedFiles[idx].rows = [];
+  loadedFiles[idx].tracked = 0;
+}
+
+function fileLoadDone(gen) {
+  if (gen !== uploadGen) return; // stale batch, superseded — ignore
+  pendingCount--;
+  if (pendingCount > 0) return;
+  refreshDownstream();
+}
+
+// Rebuilds every view that depends on the current set of loaded files:
+// the calculator's account picker, its auto-filled balance, the Step 3
+// ending-balance table, and the Step 2B batch current-balance table.
+function refreshDownstream() {
+  const files = activeFiles();
+
+  const sel = document.getElementById('calcFileSelect');
+  const prevSel = sel.value;
+  sel.innerHTML = files.length === 0
+    ? '<option value="">— no valid files —</option>'
+    : files.map(f => `<option value="${f.idx}">${escHtml(f.name)}</option>`).join('');
+  if (files.some(f => String(f.idx) === prevSel)) sel.value = prevSel;
+
+  autoFillCurrentBalance();
+  refreshEndingBalancesTable();
+  refreshBatchBalancesTable();
+}
+
+// Removes one uploaded file from every downstream view without disturbing
+// the index/idx of the other loaded files (rows are hidden, not spliced,
+// so data-idx attributes elsewhere stay valid).
+function removeFile(idx) {
+  if (!loadedFiles[idx]) return;
+  loadedFiles[idx].removed = true;
+  const row = document.getElementById('frow-' + idx);
+  if (row) row.style.display = 'none';
+  refreshDownstream();
+}
+
+function clearAllFiles() {
+  uploadGen++; // invalidate any FileReader callbacks still in flight
+  loadedFiles = [];
+  pendingCount = 0;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('fileListBody').innerHTML = '';
+  document.getElementById('fileListWrap').classList.add('hidden');
+  document.getElementById('currentBalance').value = '';
+  document.getElementById('balanceAutoNote').className = 'status';
+  document.getElementById('resultCard').classList.remove('show');
+  document.getElementById('batchResultWrap').classList.add('hidden');
+  refreshDownstream();
+}
+
+document.getElementById('calcFileSelect').addEventListener('change', autoFillCurrentBalance);
+
+// Auto-fills the "current cash balance" field from the amount parsed out of the
+// selected file's name (e.g. "SW 237.76.xlsx" -> 237.76), when available.
+function autoFillCurrentBalance() {
+  const note = document.getElementById('balanceAutoNote');
+  const selIdx = parseInt(document.getElementById('calcFileSelect').value);
+  if (isNaN(selIdx) || !loadedFiles[selIdx]) { note.className = 'status'; return; }
+
+  const file = loadedFiles[selIdx];
+  if (file.parsedAmount != null) {
+    document.getElementById('currentBalance').value = file.parsedAmount;
+    note.textContent = 'Auto-filled ' + fmt(file.parsedAmount) + ' from filename "' + file.name + '".';
+    note.className = 'status show info';
+  } else {
+    note.textContent = 'Filename doesn\'t include a balance — enter it manually.';
+    note.className = 'status show info';
+  }
+}
+
+function refreshEndingBalancesTable() {
+  const files = activeFiles();
+  const tbody = document.getElementById('endingBalancesBody');
+
+  if (files.length === 0) {
+    tbody.innerHTML = '';
+    document.getElementById('endingBalancesWrap').classList.add('hidden');
+    document.getElementById('endingBalancesEmpty').style.display = 'block';
+    return;
+  }
+
+  const startDate = document.getElementById('reportStart').value;
+  const endDate   = document.getElementById('reportEnd').value;
+
+  // Preserve any already-entered ending balances
+  const existingVals = {};
+  tbody.querySelectorAll('tr[data-idx]').forEach(tr => {
+    const inp = tr.querySelector('input');
+    if (inp && inp.value) existingVals[tr.dataset.idx] = inp.value;
+  });
+
+  tbody.innerHTML = '';
+  files.forEach(f => {
+    const inRange = (startDate && endDate)
+      ? f.rows.filter(r => r.date >= startDate && r.date <= endDate && (CREDIT_CODES.has(r.code) || DEBIT_CODES.has(r.code))).length
+      : f.tracked;
+
+    // Never auto-fill this from the filename balance — "ending balance as of
+    // the report end date" and "current balance right now" are only the same
+    // number when the end date happens to be today. Always starts blank.
+    const prefill = existingVals[f.idx] !== undefined ? existingVals[f.idx] : '';
+
+    const label = f.initials
+      ? escHtml(f.initials) + ' <span style="color:#666">(' + escHtml(f.name) + ')</span>'
+      : escHtml(f.name);
+
+    const tr = document.createElement('tr');
+    tr.dataset.idx = f.idx;
+    tr.innerHTML = `
+      <td class="fname">${label}</td>
+      <td><span class="tracked-count">${inRange}</span></td>
+      <td><input type="number" step="0.01" placeholder="e.g. 312.45" data-idx="${f.idx}" class="ending-bal-input" value="${prefill}"></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('endingBalancesWrap').classList.remove('hidden');
+  document.getElementById('endingBalancesEmpty').style.display = 'none';
+}
+
+// Step 2B's editable "current balance per account" table — pre-filled from
+// each filename where possible, but always overridable before calculating.
+function refreshBatchBalancesTable() {
+  const files = activeFiles();
+  const tbody = document.getElementById('batchBalancesBody');
+
+  if (files.length === 0) {
+    tbody.innerHTML = '';
+    document.getElementById('batchBalancesWrap').classList.add('hidden');
+    document.getElementById('batchBalancesEmpty').style.display = 'block';
+    return;
+  }
+
+  const existingVals = {};
+  tbody.querySelectorAll('tr[data-idx]').forEach(tr => {
+    const inp = tr.querySelector('input');
+    if (inp && inp.value) existingVals[tr.dataset.idx] = inp.value;
+  });
+
+  tbody.innerHTML = '';
+  files.forEach(f => {
+    const prefill = existingVals[f.idx] !== undefined ? existingVals[f.idx]
+                   : (f.parsedAmount != null ? f.parsedAmount : '');
+
+    const label = f.initials
+      ? escHtml(f.initials) + ' <span style="color:#666">(' + escHtml(f.name) + ')</span>'
+      : escHtml(f.name);
+
+    const tr = document.createElement('tr');
+    tr.dataset.idx = f.idx;
+    tr.innerHTML = `
+      <td class="fname">${label}</td>
+      <td><input type="number" step="0.01" placeholder="e.g. 312.45" data-idx="${f.idx}" class="batch-bal-input" value="${prefill}"></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('batchBalancesWrap').classList.remove('hidden');
+  document.getElementById('batchBalancesEmpty').style.display = 'none';
+}
+
+function calculate() {
+  hideStatus('calcStatus');
+
+  const selIdx = parseInt(document.getElementById('calcFileSelect').value);
+  if (isNaN(selIdx)) { setStatus('calcStatus', 'Select an account file.', 'err'); return; }
+  const file = loadedFiles[selIdx];
+  if (!file || file.rows.length === 0) { setStatus('calcStatus', 'Selected file has no valid data.', 'err'); return; }
+
+  const balInput = document.getElementById('currentBalance').value.trim();
+  if (!balInput) { setStatus('calcStatus', 'Enter the current cash balance.', 'err'); return; }
+  const currentBalance = parseFloat(balInput);
+  if (isNaN(currentBalance)) { setStatus('calcStatus', 'Balance must be a number.', 'err'); return; }
+
+  const targetDate = document.getElementById('targetDate').value;
+  if (!targetDate) { setStatus('calcStatus', 'Select a target date.', 'err'); return; }
+
+  const afterRows = file.rows.filter(r =>
+    r.date > targetDate && (CREDIT_CODES.has(r.code) || DEBIT_CODES.has(r.code))
+  );
+
+  let depositsAfter = 0, withdrawalsAfter = 0;
+  afterRows.forEach(r => {
+    if (CREDIT_CODES.has(r.code)) depositsAfter += r.amount;
+    if (DEBIT_CODES.has(r.code))  withdrawalsAfter += r.amount;
+  });
+
+  const estimated = currentBalance - depositsAfter + withdrawalsAfter;
+
+  document.getElementById('resultAmount').textContent = fmt(estimated);
+  document.getElementById('resultDate').textContent   = 'As of ' + fmtDate(targetDate) + ' — ' + escHtml(file.name);
+  document.getElementById('sumCurrent').textContent   = fmt(currentBalance);
+  document.getElementById('sumIn').textContent        = '- ' + fmt(depositsAfter);
+  document.getElementById('sumOut').textContent       = '+ ' + fmt(withdrawalsAfter);
+  document.getElementById('sumResult').textContent    = fmt(estimated);
+
+  if (afterRows.length === 0) {
+    document.getElementById('txTable').innerHTML = '<p class="no-tx">No tracked transactions found after ' + fmtDate(targetDate) + '.</p>';
+  } else {
+    let html = '<table><thead><tr><th>Date</th><th>Code</th><th>Description</th><th>Amount</th><th>Effect</th></tr></thead><tbody>';
+    afterRows.slice().sort((a, b) => b.date.localeCompare(a.date)).forEach(r => {
+      const isCredit = CREDIT_CODES.has(r.code);
+      html += '<tr>' +
+        '<td>' + fmtDate(r.date) + '</td>' +
+        '<td><span class="code-badge">' + r.code + '</span></td>' +
+        '<td>' + escHtml(r.desc) + '</td>' +
+        '<td class="' + (isCredit ? 'red' : 'green') + '">' + fmt(r.amount) + '</td>' +
+        '<td class="gray">' + (isCredit ? 'deposit removed' : 'withdrawal added back') + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('txTable').innerHTML = html;
+  }
+
+  const warnings = [];
+  if (currentBalance < 0) warnings.push('current balance is negative');
+  if (targetDate > todayStr()) warnings.push('target date is in the future — result assumes no further transactions occur before then');
+  if (warnings.length) setStatus('calcStatus', 'Note: ' + warnings.join('; ') + '.', 'warn');
+
+  const rc = document.getElementById('resultCard');
+  rc.classList.add('show');
+  rc.scrollIntoView({ behavior: 'smooth' });
+}
+
+function calculateBatch() {
+  hideStatus('batchStatus');
+
+  const targetDate = document.getElementById('batchTargetDate').value;
+  if (!targetDate) { setStatus('batchStatus', 'Select a target date.', 'err'); return; }
+
+  const inputs = document.querySelectorAll('.batch-bal-input');
+  if (inputs.length === 0) { setStatus('batchStatus', 'Upload files first.', 'err'); return; }
+
+  const tbody = document.getElementById('batchResultBody');
+  tbody.innerHTML = '';
+
+  let calculated = 0, skipped = 0;
+  const isFutureDate = targetDate > todayStr();
+
+  inputs.forEach(inp => {
+    const idx = parseInt(inp.dataset.idx);
+    const f = loadedFiles[idx];
+    if (!f) return;
+
+    const label = f.initials
+      ? escHtml(f.initials) + ' <span style="color:#666">(' + escHtml(f.name) + ')</span>'
+      : escHtml(f.name);
+    const tr = document.createElement('tr');
+
+    const val = inp.value.trim();
+    const currentBalance = parseFloat(val);
+    if (!val || isNaN(currentBalance)) {
+      skipped++;
+      tr.innerHTML = `
+        <td class="fname">${label}</td>
+        <td class="gray">—</td>
+        <td class="gray">enter a current balance above</td>
+      `;
+      tbody.appendChild(tr);
+      return;
+    }
+
+    const afterRows = f.rows.filter(r =>
+      r.date > targetDate && (CREDIT_CODES.has(r.code) || DEBIT_CODES.has(r.code))
+    );
+    let depositsAfter = 0, withdrawalsAfter = 0;
+    afterRows.forEach(r => {
+      if (CREDIT_CODES.has(r.code)) depositsAfter += r.amount;
+      if (DEBIT_CODES.has(r.code))  withdrawalsAfter += r.amount;
+    });
+    const estimated = currentBalance - depositsAfter + withdrawalsAfter;
+    calculated++;
+
+    tr.innerHTML = `
+      <td class="fname">${label}</td>
+      <td>${fmt(currentBalance)}</td>
+      <td class="green" style="font-weight:700">${fmt(estimated)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('batchResultWrap').classList.remove('hidden');
+
+  let msg = '✓ Calculated ' + calculated + ' account(s) for ' + fmtDate(targetDate);
+  if (skipped > 0) msg += ' · ' + skipped + ' missing a current balance';
+  if (isFutureDate) msg += ' · note: target date is in the future';
+  setStatus('batchStatus', msg, calculated === 0 ? 'err' : (isFutureDate || skipped > 0 ? 'warn' : 'ok'));
+}
+
+function exportReport() {
+  hideStatus('exportStatus');
+  try {
+    const startDate = document.getElementById('reportStart').value;
+    const endDate   = document.getElementById('reportEnd').value;
+    if (!startDate || !endDate) { setStatus('exportStatus', 'Select both a start and end date.', 'err'); return; }
+    if (startDate > endDate)    { setStatus('exportStatus', 'Start date must be before end date.', 'err'); return; }
+
+    // Collect ending balances from the dynamic inputs
+    const inputs = document.querySelectorAll('.ending-bal-input');
+    if (inputs.length === 0) { setStatus('exportStatus', 'Upload files first.', 'err'); return; }
+
+    const entries = [];
+    let missingBalance = false;
+
+    inputs.forEach(inp => {
+      const idx = parseInt(inp.dataset.idx);
+      const file = loadedFiles[idx];
+      const val = inp.value.trim();
+      if (!val) { missingBalance = true; return; }
+      const ending = parseFloat(val);
+      if (isNaN(ending)) { missingBalance = true; return; }
+      entries.push({ file, ending });
+    });
+
+    if (missingBalance) { setStatus('exportStatus', 'Enter the ending balance for every account.', 'err'); return; }
+    if (entries.length === 0) { setStatus('exportStatus', 'No valid accounts to export.', 'err'); return; }
+
+    if (typeof XLSX === 'undefined') {
+      setStatus('exportStatus', 'The Excel library failed to load (offline or blocked?). Reload the page and try again.', 'err');
+      return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    const emptyRangeAccounts = [];
+
+    entries.forEach(({ file, ending }) => {
+      const rows = file.rows
+        .filter(r => r.date >= startDate && r.date <= endDate && (CREDIT_CODES.has(r.code) || DEBIT_CODES.has(r.code)))
+        .sort((a, b) => a.date.localeCompare(b.date) || a.code - b.code);
+
+      if (rows.length === 0) emptyRangeAccounts.push(file.initials || file.name);
+
+      // Calculate opening balance by reversing all transactions from the ending
+      let opening = ending;
+      rows.forEach(r => {
+        if (CREDIT_CODES.has(r.code)) opening = round2(opening - r.amount);
+        if (DEBIT_CODES.has(r.code))  opening = round2(opening + r.amount);
+      });
+
+      const data = [];
+      data.push(['Acumatica Primary Safe — Running Balance Audit']);
+      data.push(['Account File:', file.name]);
+      data.push(['Date Range:', fmtDate(startDate) + '  to  ' + fmtDate(endDate)]);
+      data.push(['Opening Balance (calculated):', opening]);
+      data.push(['Ending Balance (known):', ending]);
+      data.push([]);
+      data.push(['Date', 'Tran Code', 'Code Description', 'Transaction Description', 'Type', 'Amount', 'Running Balance']);
+
+      let running = opening;
+      let totalDep = 0, totalWith = 0;
+
+      if (rows.length === 0) {
+        data.push(['No tracked transactions in this date range.']);
+      } else {
+        rows.forEach(r => {
+          const isCredit = CREDIT_CODES.has(r.code);
+          if (isCredit) { running = round2(running + r.amount); totalDep  = round2(totalDep + r.amount); }
+          else          { running = round2(running - r.amount); totalWith = round2(totalWith + r.amount); }
+          data.push([
+            fmtDate(r.date),
+            r.code,
+            CODE_DESC[r.code] || '',
+            r.desc,
+            isCredit ? 'DEPOSIT' : 'WITHDRAWAL',
+            isCredit ? r.amount : -r.amount,
+            running,
+          ]);
+        });
+      }
+
+      data.push([]);
+      data.push(['SUMMARY']);
+      data.push(['Opening Balance (calculated)', '', '', '', '', '', opening]);
+      data.push(['Total Deposits',              '', '', '', '', '', totalDep]);
+      data.push(['Total Withdrawals',           '', '', '', '', '', totalWith]);
+      data.push(['Closing Balance (verify = known ending)', '', '', '', '', '', running]);
+
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      ws['!cols'] = [
+        { wch: 12 }, { wch: 10 }, { wch: 36 }, { wch: 38 }, { wch: 12 }, { wch: 12 }, { wch: 16 }
+      ];
+
+      // Tab name: initials if filename matched the naming convention, else filename without extension (max 31 chars, Excel limit)
+      let tabName = (file.initials || file.name.replace(/\.[^.]+$/, '')).replace(/[\\/*?:[\]]/g, '-').substring(0, 31);
+      // Avoid duplicate tab names
+      let base = tabName, n = 2;
+      while (wb.SheetNames.includes(tabName)) { tabName = (base.substring(0, 28) + '-' + n++); }
+
+      XLSX.utils.book_append_sheet(wb, ws, tabName);
+    });
+
+    // Download
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+    const buf = new ArrayBuffer(wbout.length);
+    const view = new Uint8Array(buf);
+    for (let i = 0; i < wbout.length; i++) view[i] = wbout.charCodeAt(i) & 0xff;
+    const blob = new Blob([buf], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'balance_audit_' + startDate + '_to_' + endDate + '.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    let exportMsg = '✓ Downloaded ' + entries.length + ' account tab(s) · ' + startDate + ' to ' + endDate;
+    if (emptyRangeAccounts.length) exportMsg += ' · no tracked transactions in range for: ' + emptyRangeAccounts.join(', ');
+    setStatus('exportStatus', exportMsg, emptyRangeAccounts.length ? 'warn' : 'ok');
+  } catch (err) {
+    setStatus('exportStatus', 'Export failed: ' + err.message, 'err');
+  }
+}
+
+function excelSerialToDateStr(serial) {
+  const ms = (serial - 25569) * 86400 * 1000;
+  const d = new Date(ms);
+  return d.getUTCFullYear() + '-' +
+         String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getUTCDate()).padStart(2, '0');
+}
+
+function round2(n) {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function fmt(n) {
+  const neg = n < 0;
+  return (neg ? '-$' : '$') + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function fmtDate(d) {
+  const [y, m, day] = d.split('-');
+  return m + '/' + day + '/' + y;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Parses "INITIALS AMOUNT.xlsx" e.g. "DD 247.31.xls" -> { initials: 'DD', amount: 247.31 }
+function parseFilename(name) {
+  const m = name.match(/^(.+?)\s+(\d+(?:\.\d{1,2})?)\.(xlsx?|xls)$/i);
+  if (!m) return null;
+  return { initials: m[1].trim(), amount: parseFloat(m[2]) };
+}
+</script>
+</body>
+</html>
