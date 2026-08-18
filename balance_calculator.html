@@ -115,6 +115,7 @@ td { padding: 7px 6px; border-bottom: 1px solid #1e1e1e; vertical-align: top; }
   </select>
   <label>Current cash balance for that account (right now)</label>
   <input type="number" id="currentBalance" placeholder="e.g. 312.45" step="0.01">
+  <div id="balanceAutoNote" class="status info" style="margin-top:-6px;margin-bottom:12px"></div>
   <label>Target date — what date do you want to know the balance for?</label>
   <input type="date" id="targetDate">
   <button class="btn btn-green" onclick="calculate()">Calculate Balance</button>
@@ -136,6 +137,22 @@ td { padding: 7px 6px; border-bottom: 1px solid #1e1e1e; vertical-align: top; }
   <br>
   <button class="toggle-btn" onclick="document.getElementById('txTable').classList.toggle('show')">Show / Hide Transactions Used</button>
   <div class="tx-table-wrap" id="txTable"></div>
+</div>
+
+<!-- STEP 2B: BATCH TARGET DATE MODE (ALL ACCOUNTS) -->
+<div class="card">
+  <h2>2B. Batch Mode — All Accounts on One Target Date</h2>
+  <p style="color:#888;font-size:0.8rem;margin-bottom:14px">Uses the current balance parsed from each "INITIALS AMOUNT.xlsx" filename as the starting point, then rolls every account back to the target date at once.</p>
+  <label>Target date — what date do you want balances for?</label>
+  <input type="date" id="batchTargetDate">
+  <button class="btn btn-green" onclick="calculateBatch()">Calculate All Accounts</button>
+  <div id="batchStatus" class="status"></div>
+  <div id="batchResultWrap" class="hidden" style="margin-top:16px">
+    <table class="file-table">
+      <thead><tr><th>Account</th><th>Current Balance</th><th>Balance on Target Date</th></tr></thead>
+      <tbody id="batchResultBody"></tbody>
+    </table>
+  </div>
 </div>
 
 <!-- STEP 3: MULTI-ACCOUNT AUDIT EXPORT -->
@@ -339,8 +356,30 @@ function fileLoadDone() {
     ? '<option value="">— no valid files —</option>'
     : okFiles.map(f => `<option value="${f.idx}">${escHtml(f.name)}</option>`).join('');
 
+  autoFillCurrentBalance();
+
   // Ending balances table
   refreshEndingBalancesTable();
+}
+
+document.getElementById('calcFileSelect').addEventListener('change', autoFillCurrentBalance);
+
+// Auto-fills the "current cash balance" field from the amount parsed out of the
+// selected file's name (e.g. "SW 237.76.xlsx" -> 237.76), when available.
+function autoFillCurrentBalance() {
+  const note = document.getElementById('balanceAutoNote');
+  const selIdx = parseInt(document.getElementById('calcFileSelect').value);
+  if (isNaN(selIdx) || !loadedFiles[selIdx]) { note.className = 'status'; return; }
+
+  const file = loadedFiles[selIdx];
+  if (file.parsedAmount != null) {
+    document.getElementById('currentBalance').value = file.parsedAmount;
+    note.textContent = 'Auto-filled ' + fmt(file.parsedAmount) + ' from filename "' + file.name + '".';
+    note.className = 'status show info';
+  } else {
+    note.textContent = 'Filename doesn\'t include a balance — enter it manually.';
+    note.className = 'status show info';
+  }
 }
 
 function refreshEndingBalancesTable() {
@@ -441,6 +480,64 @@ function calculate() {
   const rc = document.getElementById('resultCard');
   rc.classList.add('show');
   rc.scrollIntoView({ behavior: 'smooth' });
+}
+
+function calculateBatch() {
+  hideStatus('batchStatus');
+
+  const targetDate = document.getElementById('batchTargetDate').value;
+  if (!targetDate) { setStatus('batchStatus', 'Select a target date.', 'err'); return; }
+
+  const okFiles = loadedFiles.filter(f => f.rows.length > 0);
+  if (okFiles.length === 0) { setStatus('batchStatus', 'Upload files first.', 'err'); return; }
+
+  const tbody = document.getElementById('batchResultBody');
+  tbody.innerHTML = '';
+
+  let calculated = 0, skipped = 0;
+
+  okFiles.forEach(f => {
+    const label = f.initials
+      ? escHtml(f.initials) + ' <span style="color:#666">(' + escHtml(f.name) + ')</span>'
+      : escHtml(f.name);
+
+    const tr = document.createElement('tr');
+
+    if (f.parsedAmount == null) {
+      skipped++;
+      tr.innerHTML = `
+        <td class="fname">${label}</td>
+        <td class="gray">—</td>
+        <td class="gray">no balance in filename</td>
+      `;
+      tbody.appendChild(tr);
+      return;
+    }
+
+    const afterRows = f.rows.filter(r =>
+      r.date > targetDate && (CREDIT_CODES.has(r.code) || DEBIT_CODES.has(r.code))
+    );
+    let depositsAfter = 0, withdrawalsAfter = 0;
+    afterRows.forEach(r => {
+      if (CREDIT_CODES.has(r.code)) depositsAfter += r.amount;
+      if (DEBIT_CODES.has(r.code))  withdrawalsAfter += r.amount;
+    });
+    const estimated = f.parsedAmount - depositsAfter + withdrawalsAfter;
+    calculated++;
+
+    tr.innerHTML = `
+      <td class="fname">${label}</td>
+      <td>${fmt(f.parsedAmount)}</td>
+      <td class="green" style="font-weight:700">${fmt(estimated)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('batchResultWrap').classList.remove('hidden');
+
+  let msg = '✓ Calculated ' + calculated + ' account(s) for ' + fmtDate(targetDate);
+  if (skipped > 0) msg += ' · ' + skipped + ' skipped (no balance in filename)';
+  setStatus('batchStatus', msg, calculated > 0 ? 'ok' : 'err');
 }
 
 function exportReport() {
